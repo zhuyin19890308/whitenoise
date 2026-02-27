@@ -1,0 +1,22 @@
+{
+    "pages": [
+        {
+            "path": "pages/index/index",
+            "style": {
+                "navigationBarTitleText": "冥想空间",
+                "navigationBarBackgroundColor": "#121212",
+                "navigationBarTextStyle": "white",
+                "disableScroll": true,
+                "app-plus": {
+                    "bounce": "none"
+                }
+            }
+        }
+    ],
+    "globalStyle": {
+        "navigationBarTextStyle": "white",
+        "navigationBarTitleText": "冥想空间",
+        "navigationBarBackgroundColor": "#121212",
+        "backgroundColor": "#121212"
+    }
+}

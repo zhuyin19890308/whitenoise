@@ -1,0 +1,17 @@
+# Multi-platform
+unpackage/
+unpackage/dist/
+
+# Editor/OS
+.DS_Store
+.hbuilderx/
+.vscode/
+.idea/
+
+# Local configuration
+project.private.config.json
+
+# Local artifacts
+.gemini/
+brain/
+*.log

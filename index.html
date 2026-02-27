@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>冥想空间</title>
+    <meta name="description" content="白噪音混音器 - 多轨道冥想音频混音应用" />
+    <script>
+      /* 兼容 uni-app 对 plus 的引用 */
+      var plus = window.plus || {};
+      var weex = window.weex || {};
+    </script>
+    <style>
+      /* 防止白屏闪烁 */
+      html, body {
+        background-color: #121212;
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <!-- #ifdef APP-PLUS -->
+    <script src="static/js/uni-app-core.js"></script>
+    <!-- #endif -->
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>
