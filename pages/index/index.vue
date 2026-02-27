@@ -11,9 +11,14 @@
       <view class="visual-gradient-top" />
       <view class="visual-gradient-bottom" />
 
-      <!-- 标题覆盖层 -->
       <view class="visual-overlay">
-        <text class="app-title">~~ 冥想空间 ~~</text>
+        <view class="brand-wrap">
+          <text class="brand-main">M I A N R O N G</text>
+          <view class="brand-sub">
+            <text class="brand-zh">眠 融</text>
+            <text class="brand-tag">PRO</text>
+          </view>
+        </view>
         <view class="scene-badge" v-if="currentSceneText !== '静寂无声'">
           <text class="scene-dot">●</text>
           <text class="scene-text">{{ currentSceneText }}</text>
@@ -28,11 +33,42 @@
          中部：8 通道调音台
     ════════════════════════════════════════ -->
     <view class="mixer-panel">
-      <!-- 顶部装饰线 -->
       <view class="panel-header">
-        <view class="panel-led" :class="{ 'led-on': isGlobalPlaying && hasActiveTracks }"></view>
-        <text class="panel-label">MIXER · 8CH</text>
-        <view class="panel-led" :class="{ 'led-on': isGlobalPlaying && hasActiveTracks }"></view>
+        <view class="panel-info">
+          <view class="lcd-display">
+            <text class="lcd-label">SCENE:</text>
+            <text class="lcd-value">{{ scenes.find((s: Scene) => s.id === currentSceneId)?.name || 'MANUAL' }}</text>
+            <view class="lcd-divider"></view>
+            <text class="lcd-label">CH:</text>
+            <text class="lcd-value">{{ tracks.filter((t: Track) => t.volume > 0).length }}/8</text>
+          </view>
+        </view>
+        <view class="panel-led-group">
+          <view class="panel-led" :class="{ 'led-on': isGlobalPlaying && hasActiveTracks }"></view>
+          <text class="panel-label">PRO MIXER</text>
+        </view>
+      </view>
+      
+      <!-- 场景管理：水平滚动选择器 -->
+      <view class="scene-manager">
+        <scroll-view scroll-x class="scene-scroll">
+          <view class="scene-list">
+            <view 
+              class="scene-item" 
+              v-for="scene in scenes" 
+              :key="scene.id"
+              :class="{ 'scene-active': currentSceneId === scene.id }"
+              @click="applyScene(scene)"
+              @longpress="deleteScene(scene.id)"
+            >
+              <text class="scene-name">{{ scene.name }}</text>
+            </view>
+            <!-- 新增场景按钮 -->
+            <view class="scene-item add-scene" @click="showSaveModal = true">
+              <text class="scene-name">+ 保存当前</text>
+            </view>
+          </view>
+        </scroll-view>
       </view>
 
       <view class="channels-scroll">
@@ -51,35 +87,39 @@
             </view>
             <text class="ch-name">{{ track.name }}</text>
 
-            <!-- 自定义竖向触摸推子 -->
-            <view
-              class="fader-rail"
-              :id="'fader-rail-' + track.id"
-              @touchstart.stop="onFaderTouchStart(track.id, $event)"
-              @touchmove.stop.prevent="onFaderTouchMove(track.id, $event)"
-              @touchend.stop="onFaderTouchEnd(track.id)"
-            >
-              <!-- 轨道刻度 -->
-              <view class="fader-tick t100" />
-              <view class="fader-tick t75" />
-              <view class="fader-tick t50" />
-              <view class="fader-tick t25" />
-              <view class="fader-tick t0" />
+            <!-- 自定义竖向触摸推子 + VU 表容器 -->
+            <view class="fader-container">
+              <!-- 左侧 VU 表 (装饰性) -->
+              <view class="vu-meter">
+                <view class="vu-led" v-for="i in 12" :key="i" :class="{ 'vu-led-on': track.volume > (12-i)/12 }"></view>
+              </view>
 
-              <!-- 填充进度条 (从底部向上) -->
               <view
-                class="fader-fill"
-                :style="{ height: (track.volume * 100) + '%', backgroundColor: getTrackColor(track.volume) }"
-              />
-
-              <!-- 推子滑块手柄 -->
-              <view
-                class="fader-knob"
-                :style="{ bottom: 'calc(' + (track.volume * 100) + '% - 14px)' }"
+                class="fader-rail"
+                :id="'fader-rail-' + track.id"
+                @touchstart.stop="onFaderTouchStart(track.id, $event)"
+                @touchmove.stop.prevent="onFaderTouchMove(track.id, $event)"
+                @touchend.stop="onFaderTouchEnd(track.id)"
               >
-                <view class="knob-line" />
-                <view class="knob-line" />
-                <view class="knob-line" />
+                <!-- 轨道刻度 -->
+                <view class="fader-tick t100" />
+                <view class="fader-tick t75" />
+                <view class="fader-tick t50" />
+                <view class="fader-tick t25" />
+                <view class="fader-tick t0" />
+  
+                <!-- 填充进度条 (从底部向上) -->
+                <view
+                  class="fader-fill"
+                  :style="{ height: (track.volume * 100) + '%', backgroundColor: getTrackColor(track.volume) }"
+                />
+  
+                <!-- 移除了物理推子手柄，仅保留电平填充 -->
+              </view>
+
+              <!-- 右侧 VU 表 (装饰性) -->
+              <view class="vu-meter">
+                <view class="vu-led" v-for="i in 12" :key="i" :class="{ 'vu-led-on': track.volume > (12-i)/12 }"></view>
               </view>
             </view>
 
@@ -101,9 +141,15 @@
     ════════════════════════════════════════ -->
     <view class="master-bar">
       <!-- 睡眠定时按钮 -->
-      <view class="master-btn" @click="toggleTimer" :class="{ 'btn-active': currentTimerIndex > 0 }">
-        <text class="master-btn-icon">⏱</text>
-        <text class="master-btn-label">{{ timerText }}</text>
+      <view class="master-btn timer-btn" @click="toggleTimer" :class="{ 'btn-active': currentTimerIndex > 0 }">
+        <view class="master-btn-content">
+          <view class="icon-clock-wrap">
+            <view class="icon-clock-circle" />
+            <view class="icon-clock-hand h-long" />
+            <view class="icon-clock-hand h-short" />
+          </view>
+          <text v-if="currentTimerIndex > 0" class="timer-countdown">{{ timerText }}</text>
+        </view>
       </view>
 
       <!-- 中央大播放按钮 -->
@@ -113,13 +159,63 @@
         @click="toggleGlobalPlay"
       >
         <view class="play-btn-ring" />
-        <text class="play-btn-icon">{{ isGlobalPlaying ? '⏸' : '▶' }}</text>
+        <view class="play-btn-content">
+          <view v-if="!isGlobalPlaying" class="shape-play" />
+          <view v-else class="shape-pause">
+            <view class="pause-bar" />
+            <view class="pause-bar" />
+          </view>
+        </view>
       </view>
 
       <!-- 重置所有通道按钮 -->
       <view class="master-btn" @click="resetAll">
-        <text class="master-btn-icon">↺</text>
-        <text class="master-btn-label">重置</text>
+        <view class="master-btn-content">
+          <text class="master-btn-icon">↺</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- ═══════════════════════════════════════
+         新增场景命名弹窗
+    ════════════════════════════════════════ -->
+    <view class="modal-overlay" v-if="showSaveModal" @click="showSaveModal = false">
+      <view class="modal-content" @click.stop>
+        <view class="modal-header">
+          <text class="modal-title">保存为新场景</text>
+        </view>
+        <view class="modal-body">
+          <input 
+            class="modal-input" 
+            v-model="newSceneName" 
+            placeholder="例如：孩子助眠 / 我的工作" 
+            placeholder-style="color:rgba(255,255,255,0.2)"
+            confirm-type="done"
+            @confirm="saveCurrentAsScene"
+          />
+        </view>
+        <view class="modal-footer">
+          <view class="modal-btn cancel" @click="showSaveModal = false">取消</view>
+          <view class="modal-btn confirm" @click="saveCurrentAsScene">保存</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- ═══════════════════════════════════════
+         删除确认弹窗
+    ════════════════════════════════════════ -->
+    <view class="modal-overlay" v-if="showDeleteModal" @click="showDeleteModal = false">
+      <view class="modal-content" @click.stop>
+        <view class="modal-header">
+          <text class="modal-title">确认删除</text>
+        </view>
+        <view class="modal-body">
+          <text class="modal-text">确定要永久删除这个自定义场景吗？</text>
+        </view>
+        <view class="modal-footer">
+          <view class="modal-btn cancel" @click="showDeleteModal = false">取消</view>
+          <view class="modal-btn confirm delete-btn" @click="confirmDelete">删除</view>
+        </view>
       </view>
     </view>
   </view>
@@ -144,18 +240,145 @@ interface Track {
   context: any | null;   // InnerAudioContext
   isLoading?: boolean;   // 是否正在从远程加载/缓存
 }
+
+interface Scene {
+  id: string;
+  name: string;
+  volumes: Record<string, number>;
+}
 import { AudioCacheManager } from '../../utils/audioCacheManager';
 import { AUDIO_TRACKS, type TrackConfig } from '../../config/index';
 
 /* ─── 8 轨道初始数据 ─── */
-// url 为空字符串表示该轨道暂无音频文件，初始化时跳过
+/* ─── 场景管理数据 (Persistence) ─── */
+const SAVED_SCENES_KEY = 'WHITE_NOISE_SAVED_SCENES';
+const LAST_SCENE_ID_KEY = 'WHITE_NOISE_LAST_SCENE_ID';
+
+const defaultScenes: Scene[] = [
+  { id: 'focus', name: '深度专注', volumes: { 'wind': 0.3, 'fire': 0.1, 'rain': 0.05 } },
+  { id: 'child', name: '宝宝助眠', volumes: { 'rain': 0.4, 'summer': 0.2 } },
+  { id: 'meditation', name: '冥想时刻', volumes: { 'bowl': 0.6, 'wind': 0.2 } }
+];
+
+const scenes = ref<Scene[]>([]);
+const currentSceneId = ref<string>('');
+const showSaveModal = ref(false);
+const showDeleteModal = ref(false);
+const sceneToDeleteId = ref<string | null>(null);
+const newSceneName = ref('');
+
+const loadSavedData = () => {
+  const storedScenes = uni.getStorageSync(SAVED_SCENES_KEY);
+  scenes.value = storedScenes && storedScenes.length ? storedScenes : [...defaultScenes];
+  
+  const lastId = uni.getStorageSync(LAST_SCENE_ID_KEY);
+  if (lastId && scenes.value.some((s: Scene) => s.id === lastId)) {
+    currentSceneId.value = lastId;
+  }
+};
+
+const persistScenes = () => {
+  uni.setStorageSync(SAVED_SCENES_KEY, scenes.value);
+};
+
+const persistLastSceneId = () => {
+  uni.setStorageSync(LAST_SCENE_ID_KEY, currentSceneId.value);
+};
+
+/* ─── 8 轨道初始化 ─── */
 const tracks = ref<Track[]>(AUDIO_TRACKS.map((tc: TrackConfig) => ({
   ...tc,
-  volume: tc.defaultVolume, // 必须初始化 volume，否则由于 NaN 导致初始 UI 无法拖拽
+  volume: tc.defaultVolume,
   url: tc.fileName,
   context: null,
   isLoading: false
 })));
+
+/**
+ * 核心：应用一个场景的音量配置
+ */
+const applyScene = (scene: Scene) => {
+  currentSceneId.value = scene.id;
+  persistLastSceneId();
+  
+  tracks.value.forEach((t: Track) => {
+    const vol = scene.volumes[t.id] !== undefined ? scene.volumes[t.id] : 0;
+    t.volume = vol;
+    if (t.context) {
+      t.context.volume = vol;
+      // 如果音量大于 0 且全局在播放，确保播放
+      if (vol > 0 && isGlobalPlaying.value) {
+        ensureTrackSource(t).then(res => {
+          if (res && isGlobalPlaying.value && t.volume > 0) t.context.play();
+        });
+      } else if (vol === 0) {
+        t.context.pause();
+      }
+    }
+  });
+};
+
+const saveCurrentAsScene = () => {
+  if (!newSceneName.value.trim()) {
+    uni.showToast({ title: '请输入场景名称', icon: 'none' });
+    return;
+  }
+  
+  const volumes: Record<string, number> = {};
+  tracks.value.forEach((t: Track) => {
+    if (t.volume > 0) volumes[t.id] = t.volume;
+  });
+  
+  const newScene: Scene = {
+    id: Date.now().toString(),
+    name: newSceneName.value.trim(),
+    volumes
+  };
+  
+  scenes.value.push(newScene);
+  currentSceneId.value = newScene.id;
+  persistScenes();
+  persistLastSceneId();
+  
+  showSaveModal.value = false;
+  newSceneName.value = '';
+  uni.showToast({ title: '场景已保存', icon: 'success' });
+};
+
+const deleteScene = (id: string) => {
+  if (defaultScenes.some((s: Scene) => s.id === id)) {
+    uni.showToast({ title: '内置场景无法删除', icon: 'none' });
+    return;
+  }
+  sceneToDeleteId.value = id;
+  showDeleteModal.value = true;
+};
+
+const confirmDelete = () => {
+  if (sceneToDeleteId.value) {
+    const id = sceneToDeleteId.value;
+    scenes.value = scenes.value.filter((s: Scene) => s.id !== id);
+    persistScenes();
+    if (currentSceneId.value === id) currentSceneId.value = '';
+    uni.showToast({ title: '已删除', icon: 'none' });
+  }
+  showDeleteModal.value = false;
+  sceneToDeleteId.value = null;
+};
+
+/**
+ * 原有的 saveAudioConfig 升级为自动保存当前活跃场景或临时状态
+ */
+const saveAudioConfig = () => {
+  // 如果当前在某个场景下，实时更新该场景的音量
+  const activeScene = scenes.value.find((s: Scene) => s.id === currentSceneId.value);
+  if (activeScene) {
+    const volumes: Record<string, number> = {};
+    tracks.value.forEach((t: Track) => { if (t.volume > 0) volumes[t.id] = t.volume; });
+    activeScene.volumes = volumes;
+    persistScenes();
+  }
+};
 
 /* ─── 全局播放状态 ─── */
 const isGlobalPlaying = ref(true);
@@ -260,6 +483,7 @@ const onFaderTouchMove = (trackId: string, event: any) => {
 
 const onFaderTouchEnd = (_trackId: string) => {
   activeFaderState.value = null;
+  saveAudioConfig(); // 拖动结束保存配置
 };
 
 /* ─── 长按独奏 (Solo Mode) ─── */
@@ -295,6 +519,8 @@ const onTrackLongPress = (trackId: string) => {
   if (selectedTrack) {
     uni.showToast({ title: `已独奏: ${selectedTrack.name}`, icon: 'none' });
   }
+  
+  saveAudioConfig(); // 独奏状态变更保存
 };
 
 /* ─── 全局控制 ─── */
@@ -334,6 +560,7 @@ const resetAll = () => {
     }
   });
   uni.showToast({ title: '已恢复默认配置', icon: 'none' });
+  saveAudioConfig(); // 重置后保存
 };
 
 /* ─── 睡眠定时 ─── */
@@ -462,10 +689,19 @@ onMounted(() => {
     });
   }
 
+  // 1. 加载数据
+  loadSavedData();
+  
+  // 2. 初始化 Context
   tracks.value.forEach((t: Track) => initTrackContext(t));
   
-  // 启动时同步初始播放状态
-  syncAllTracks();
+  // 3. 应用上次场景
+  if (currentSceneId.value) {
+    const scene = scenes.value.find((s: Scene) => s.id === currentSceneId.value);
+    if (scene) applyScene(scene);
+  } else {
+    syncAllTracks();
+  }
 
   // 渲染完成后延迟缓存位置信息
   setTimeout(cacheRailsLayout, 300);
@@ -500,8 +736,7 @@ onUnmounted(() => {
 ══════════════════════════════════════ */
 .visual-area {
   position: relative;
-  height: 35vh;
-  flex-shrink: 0;
+  flex: 1; /* 让视觉区撑满剩余空间，填补间距 */
   overflow: hidden;
 }
 
@@ -545,12 +780,45 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.app-title {
-  font-size: 22px;
+.brand-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.brand-main {
+  font-size: 16px;
   font-weight: 200;
   color: rgba(255, 255, 255, 0.9);
-  letter-spacing: 6px;
-  text-shadow: 0 0 30px rgba(100, 200, 255, 0.4);
+  letter-spacing: 12px;
+  text-indent: 12px;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+}
+
+.brand-sub {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-zh {
+  font-size: 11px;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 12px; /* 增加间距，与英文对齐 */
+  text-indent: 12px; /* 补偿右侧多出的间距，保持居中 */
+}
+
+.brand-tag {
+  font-size: 8px;
+  color: #0a0a0f;
+  background: #4ecca3;
+  padding: 0 4px;
+  border-radius: 2px;
+  font-weight: bold;
+  letter-spacing: 1px;
 }
 
 .scene-badge {
@@ -599,13 +867,14 @@ onUnmounted(() => {
    调音台面板
 ══════════════════════════════════════ */
 .mixer-panel {
-  flex: 1;
+  flex-shrink: 0; /* 调音台不再撑开，紧贴底部 */
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #10101a 0%, #0d0d14 100%);
-  border-top: 1px solid rgba(255,255,255,0.06);
+  background: transparent;
+  border-top: none;
   overflow: hidden;
   min-height: 0;
+  padding-bottom: 0px;
 }
 
 .panel-header {
@@ -613,7 +882,50 @@ onUnmounted(() => {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px 8px;
+  padding: 12px 20px;
+  background: transparent; /* 页眉也设为透明 */
+}
+
+.panel-info {
+  display: flex;
+  align-items: center;
+}
+
+.lcd-display {
+  display: flex;
+  align-items: center;
+  background: #1a2a1a;
+  border: 1px solid #2d4d2d;
+  padding: 4px 10px;
+  border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.lcd-label {
+  font-size: 9px;
+  color: #4ecca3;
+  opacity: 0.5;
+  margin-right: 4px;
+}
+
+.lcd-value {
+  font-size: 11px;
+  color: #4ecca3;
+  font-family: monospace;
+  text-shadow: 0 0 5px rgba(78,204,163,0.5);
+}
+
+.lcd-divider {
+  width: 1px;
+  height: 10px;
+  background: rgba(78,204,163,0.2);
+  margin: 0 8px;
+}
+
+.panel-led-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .panel-label {
@@ -621,6 +933,63 @@ onUnmounted(() => {
   color: rgba(255,255,255,0.3);
   letter-spacing: 3px;
   font-family: monospace;
+}
+
+/* ══════════════════════════════════════
+   场景选择器样式
+   ══════════════════════════════════════ */
+.scene-manager {
+  padding: 0 16px 12px;
+  background: transparent;
+}
+
+.scene-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.scene-list {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+}
+
+.scene-item {
+  padding: 6px 16px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 100px;
+  border: 1px solid rgba(255,255,255,0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scene-item:active {
+  transform: scale(0.95);
+  background: rgba(255,255,255,0.1);
+}
+
+.scene-active {
+  background: #4ecca3;
+  border-color: #4ecca3;
+  box-shadow: 0 4px 12px rgba(78, 204, 163, 0.3);
+}
+
+.scene-active .scene-name {
+  color: #0a0a0f;
+  font-weight: 500;
+}
+
+.scene-name {
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+}
+
+.add-scene {
+  background: transparent;
+  border: 1px dashed rgba(255,255,255,0.2);
+}
+
+.add-scene .scene-name {
+  color: rgba(255,255,255,0.4);
 }
 
 .panel-led {
@@ -646,17 +1015,17 @@ onUnmounted(() => {
 }
 
 .channels-scroll {
-  flex: 1;
   width: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  justify-content: flex-end; /* 底部对齐 */
+  overflow: hidden; /* 彻底禁止滚动冲突 */
 }
 
 .channels-row {
   display: flex;
   flex-direction: row;
-  padding: 0 8px 10px;
+  padding: 0 8px 10px; /* 恢复正常间距，因为不再需要滚动到底部 */
   gap: 2px;
   width: 100%;
   box-sizing: border-box;
@@ -671,14 +1040,14 @@ onUnmounted(() => {
   min-width: 0;
   padding: 6px 2px 8px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  transition: background 0.3s, border-color 0.3s;
+  background: transparent; /* 去除背景方块 */
+  border: none; /* 去除边框 */
+  transition: all 0.3s;
 }
 
 .channel-active {
-  background: rgba(78, 204, 163, 0.05);
-  border-color: rgba(78, 204, 163, 0.2);
+  background: transparent;
+  border: none;
 }
 
 .ch-icon-wrap {
@@ -705,17 +1074,46 @@ onUnmounted(() => {
   margin-bottom: 8px;
 }
 
-/* ── 竖向推子 ── */
+/* ── 竖向推子容器 ── */
+.fader-container {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+/* VU 米样式 */
+.vu-meter {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 4px 0;
+  width: 4px;
+}
+
+.vu-led {
+  width: 4px;
+  height: 3px;
+  background: #222;
+  border-radius: 1px;
+}
+
+/* 顶部 LED 为红色，中间黄色，底部绿色 */
+.vu-led:nth-child(-n+2).vu-led-on { background: #ff4d4d; box-shadow: 0 0 4px #ff4d4d; }
+.vu-led:nth-child(n+3):nth-child(-n+5).vu-led-on { background: #ffd700; box-shadow: 0 0 4px #ffd700; }
+.vu-led:nth-child(n+6).vu-led-on { background: #4ecca3; box-shadow: 0 0 4px #4ecca3; }
+
 .fader-rail {
   position: relative;
-  width: 18px;
-  height: 130px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 9px;
+  width: 14px;
+  height: 180px; /* 进一步减小高度，确保在所有小屏设备上都不发生滚动冲突 */
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: visible;
   cursor: pointer;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.8);
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.9);
   flex-shrink: 0;
 }
 
@@ -750,10 +1148,10 @@ onUnmounted(() => {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  width: 30px;
-  height: 20px;
+  width: 26px; /* 随轨道减窄 */
+  height: 18px; /* 随轨道减窄 */
   background: linear-gradient(180deg, #2a2a3a 0%, #1a1a26 100%);
-  border-radius: 5px;
+  border-radius: 4px;
   border: 1px solid rgba(255,255,255,0.2);
   display: flex;
   flex-direction: column;
@@ -762,7 +1160,6 @@ onUnmounted(() => {
   gap: 3px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 1px 2px rgba(255,255,255,0.05) inset;
   z-index: 10;
-  /* 移除 bottom 的 transition，实现真正的零延迟“跟手” */
   transition: none;
 }
 
@@ -821,43 +1218,101 @@ onUnmounted(() => {
    底部主控区
 ══════════════════════════════════════ */
 .master-bar {
-  height: 88px;
+  height: auto;
+  min-height: 88px;
   flex-shrink: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-around;
-  background: #080810;
-  border-top: 1px solid rgba(255,255,255,0.06);
-  padding: 0 24px;
+  background: transparent; /* 移除底部背景 */
+  border-top: none; /* 移除分割线 */
+  padding: 10px 24px calc(14px + env(safe-area-inset-bottom)); /* 增加底部间距支撑 & 适配安全区 */
 }
 
 /* 侧边功能按钮 */
 .master-btn {
   display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  transition: all 0.2s;
+  min-width: 80px; /* 增加点击区域宽度 */
+}
+
+.master-btn-content {
+  display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px 18px;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.07);
-  transition: all 0.2s;
-  min-width: 60px;
+  gap: 4px;
 }
 
 .master-btn:active {
-  background: rgba(255,255,255,0.1);
-  transform: scale(0.95);
+  transform: scale(0.9);
+  opacity: 0.6;
 }
 
 .btn-active {
-  background: rgba(78, 204, 163, 0.1) !important;
-  border-color: rgba(78, 204, 163, 0.4) !important;
+  color: #4ecca3 !important;
+  text-shadow: 0 0 10px rgba(78, 204, 163, 0.5);
 }
 
 .master-btn-icon {
-  font-size: 22px;
-  margin-bottom: 4px;
+  font-size: 32px; /* 进一步增大图标 */
+  color: rgba(255,255,255,0.4);
+}
+
+.icon-clock-wrap {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-clock-circle {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+}
+
+.icon-clock-hand {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 1px;
+  bottom: 50%;
+  left: 50%;
+  transform-origin: bottom center;
+}
+
+.h-long {
+  width: 1.5px;
+  height: 8px;
+  transform: translateX(-50%) rotate(0deg);
+}
+
+.h-short {
+  width: 1.5px;
+  height: 6px;
+  transform: translateX(-50%) rotate(90deg);
+}
+
+.btn-active .icon-clock-circle,
+.btn-active .icon-clock-hand {
+  border-color: #4ecca3;
+  background-color: #4ecca3;
+  box-shadow: 0 0 8px rgba(78, 204, 163, 0.5);
+}
+
+.timer-countdown {
+  font-size: 10px;
+  color: #4ecca3;
+  font-family: monospace;
+  font-weight: bold;
 }
 
 .master-btn-label {
@@ -909,14 +1364,145 @@ onUnmounted(() => {
   100% { transform: scale(1.5); opacity: 0; }
 }
 
-.play-btn-icon {
-  font-size: 26px;
-  color: rgba(255, 255, 255, 0.9);
-  margin-left: 3px; /* 视觉对齐 ▶ */
+.play-btn-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
-.play-btn-active .play-btn-icon {
-  color: #4ecca3;
-  text-shadow: 0 0 12px rgba(78, 204, 163, 0.6);
+.shape-play {
+  width: 0;
+  height: 0;
+  border-left: 20px solid rgba(255, 255, 255, 0.9);
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  margin-left: 6px; /* 视觉中心校准 */
+  transition: all 0.3s;
+}
+
+.shape-pause {
+  display: flex;
+  gap: 6px;
+  transition: all 0.3s;
+}
+
+.pause-bar {
+  width: 5px;
+  height: 20px;
+  background: #4ecca3;
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(78, 204, 163, 0.5);
+}
+
+.play-btn-active .shape-play {
+  border-left-color: #4ecca3;
+}
+/* ══════════════════════════════════════
+   弹窗样式 (Modal)
+   ══════════════════════════════════════ */
+.modal-overlay,
+.modal-content,
+.modal-header,
+.modal-title,
+.modal-body,
+.modal-input,
+.modal-footer,
+.modal-btn {
+  box-sizing: border-box;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(5px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 40px;
+}
+
+.modal-content {
+  width: 100%;
+  max-width: 320px; /* 增加最大宽度限制，视觉更紧致 */
+  background: #1a1a26;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.modal-header {
+  margin-bottom: 20px;
+}
+
+.modal-title {
+  font-size: 18px;
+  color: #fff;
+  font-weight: 300;
+  letter-spacing: 2px;
+}
+
+.modal-body {
+  margin-bottom: 24px;
+}
+
+.modal-input {
+  width: 100%;
+  height: 48px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 12px;
+  padding: 0 16px;
+  color: #fff;
+  font-size: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.modal-footer {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+}
+
+.modal-btn {
+  flex: 1;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 15px;
+  transition: opacity 0.2s;
+}
+
+.modal-btn:active {
+  opacity: 0.7;
+}
+
+.cancel {
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.6);
+}
+
+.confirm {
+  background: #4ecca3;
+  color: #0a0a0f;
+  font-weight: 500;
+}
+
+.delete-btn {
+  background: #ff4d4d !important;
+  color: #fff !important;
+}
+
+.modal-text {
+  font-size: 15px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.6;
 }
 </style>
