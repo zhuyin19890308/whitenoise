@@ -4,7 +4,7 @@
 
 一个基于 uni-app 开发的极致白噪音混音器，旨在提供深度的沉浸感与高效的专注体验。
 
-![眠融 PRO 运行界面](static/screenshot_pro.png)
+<img src="static/screenshot_pro.png" width="30%" alt="眠融 PRO 运行界面" />
 
 ## 💎 PRO 版本核心特性
 
