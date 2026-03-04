@@ -67,6 +67,54 @@
 
 > 注意：`server/` 代码为独立部署的 Node / ffmpeg 混音服务，本项目前端 **只消费接口，不修改后端实现**。
 
+### 1.1 后端 Docker 构建与部署示例
+
+以下是当前线上使用的构建 & 部署流程，仅作示例参考：
+
+#### 本地构建镜像并打包
+
+在后端项目根目录（即 `server` 对应的 Node 项目目录）下：
+
+```bash
+# 构建 amd64 平台镜像
+docker build --platform linux/amd64 -t zhuyin19890308/whitenoise-server:v1.1.5 .
+
+# 导出为离线 tar 包，方便传到远端 NAS / 服务器
+docker save -o whitenoise-v1.1.5.tar zhuyin19890308/whitenoise-server:v1.1.5
+```
+
+> 实际开发中，可以通过脚本（如 `test.sh`）自动化上述流程，这里仅展示关键命令。
+
+#### 远端（NAS / 服务器）加载 & 运行
+
+在远端服务器上（示例路径 `/vol1/1000/myApps/whitenoise`）：
+
+```bash
+# 1. 停止并删除旧容器
+docker rm -f mianrong-backend || true
+
+# 2. 加载新镜像
+docker load -i whitenoise-v1.1.5.tar
+
+# 3. 运行新容器
+docker run -d \
+  --name mianrong-backend \
+  -p 4000:3000 \
+  -v /vol1/1000/myApps/whitenoise/sources:/app/sources \
+  --tmpfs /app/temp:size=512M \
+  -e BASE_URL=https://sounds.zhuyin.pro:1024 \
+  -e SOURCE_DIR=/app/sources \
+  zhuyin19890308/whitenoise-server:v1.1.5
+
+# 4. 验证容器状态
+docker ps | grep mianrong-backend
+docker logs mianrong-backend
+```
+
+- `-v /vol1/1000/myApps/whitenoise/sources:/app/sources`：挂载原始音源（单轨 mp3）目录。
+- `--tmpfs /app/temp:size=512M`：混音临时文件目录放在内存盘，加速合成。
+- `BASE_URL=https://sounds.zhuyin.pro:1024`：后端在返回合成 URL 时使用该前缀，需与前端 `LUCKY_BASE_URL` 对齐。
+
 ### 2. 动态音源配置（前端）
 
 - 配置文件：`config/index.ts`
@@ -222,6 +270,43 @@
   - 字体小：11px。
   - 颜色淡：`rgba(255,255,255,0.4)` 为基础色。
   - 动画通过 `@keyframes status-pulse` 和 `ellipsis` 实现轻微呼吸 & 动态省略号。
+
+---
+
+## ⚠️ 常见坑位与注意事项
+
+1. **后台播放失效（切后台几秒就停）**
+   - 根因：最终运行的小程序工程中，`app.json` 没有 `requiredBackgroundModes: ["audio"]`。
+   - 解决：
+     - 在 `manifest.json` 的 `mp-weixin` 段中配置：
+       ```json
+       "mp-weixin": {
+         "requiredBackgroundModes": ["audio"]
+       }
+       ```
+     - 或直接在微信小程序工程的根目录 `app.json` 中手动加入：
+       ```json
+       {
+         "requiredBackgroundModes": ["audio"],
+         ...
+       }
+       ```
+     - 修改后需要重新编译并在真机上测试。
+
+2. **开发者工具与真机行为不一致**
+   - DevTools 对音频 API 的支持不完整，例如：
+     - `setInnerAudioOption:fail 开发者工具暂时不支持此 API 调试`
+     - 后台播放、锁屏等行为与真机有差异。
+   - 建议：
+     - 所有与音频相关的关键行为（尤其是后台播放）必须以 **真机测试** 为准。
+     - DevTools 仅作为 UI 与基础逻辑的快速联调工具。
+
+3. **域名与证书问题**
+   - 云混音 API 与音源下载域名必须：
+     - 在微信小程序后台配置为 `request` 与 `downloadFile` 合法域名。
+     - 使用有效的 HTTPS 证书（自签名证书需要在 DevTools 中开启「忽略证书错误」）。
+   - 当前项目默认使用：
+     - `https://sounds.zhuyin.pro:1024` 作为统一入口，由 NAS / Lucky 反向代理到 Docker 容器。
 
 ---
 
