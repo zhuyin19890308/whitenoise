@@ -123,14 +123,15 @@ class AudioEngine {
 
                 this.bgAudioManager.onEnded(() => {
                     this.bgDebug('onEnded');
-                    // BackgroundAudioManager 结束后直接 play() 有时不会从头开始
-                    // 先 seek(0) 再 play()，确保循环
-                    try {
-                        this.bgAudioManager.seek(0);
-                    } catch (e) {
-                        // ignore
+                    // 监听播放结束，重新设置 src 实现单曲循环
+                    if (this.bgAudioManager.src) {
+                        const currentSrc = this.bgAudioManager.src;
+                        this.bgAudioManager.src = ''; // 先清空，防止某些机型不触发
+                        setTimeout(() => {
+                            this.bgAudioManager.src = currentSrc;
+                            this.bgAudioManager.play();
+                        }, 200); // 稍微延迟一下，确保状态切换
                     }
-                    this.bgAudioManager.play();
                 });
 
                 // 切后台/系统打断时，尝试保持状态（真机更有效，devtools 可能仍会被限制）
@@ -443,15 +444,15 @@ class AudioEngine {
      */
     startBgPlay(src, resolve, reject) {
         this.bgAudioManager.title = '眠融 - 白噪音';
-        // 开启循环必须在设置 src 之前，否则会导致 onEnded 触发后循环失效
-        this.bgAudioManager.loop = true; 
+        // 注释掉 loop = true，改为手动在 onEnded 中重新设置 src 实现循环（更可靠）
+        // this.bgAudioManager.loop = true; 
         this.lastBgSrc = src;
         try {
             uni.setStorageSync && uni.setStorageSync('WN_LAST_BG_SRC', src);
         } catch (e) {
             // ignore
         }
-        this.bgDebug('setSrc_begin', { nextSrc: src, loop: true });
+        this.bgDebug('setSrc_begin', { nextSrc: src });
         this.bgAudioManager.src = src;
 
         this.bgAudioManager.onPlay(() => {
