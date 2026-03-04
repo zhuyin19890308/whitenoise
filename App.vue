@@ -1,5 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
+import AudioEngine from './utils/AudioEngine';
 
 export default defineComponent({
   onLaunch() {
@@ -7,9 +8,22 @@ export default defineComponent({
   },
   onShow() {
     console.log('App Show');
+    // 回到前台时尝试恢复后台音频
+    try {
+      console.log('[App] AudioEngine state:', AudioEngine.getState?.(), 'lastBgSrc:', AudioEngine.lastBgSrc);
+      AudioEngine.onAppShow?.();
+    } catch (e) {
+      // ignore
+    }
   },
   onHide() {
     console.log('App Hide');
+    try {
+      console.log('[App] AudioEngine state:', AudioEngine.getState?.(), 'lastBgSrc:', AudioEngine.lastBgSrc);
+      AudioEngine.onAppHide?.();
+    } catch (e) {
+      // ignore
+    }
   }
 });
 </script>

@@ -72,7 +72,8 @@
             "postcss": true,
             "minified": true
         },
-        "usingComponents": true
+        "usingComponents": true,
+        "requiredBackgroundModes": ["audio"]
     },
     "h5": {
         "router": {

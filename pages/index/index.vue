@@ -33,6 +33,11 @@
          中部：8 通道调音台
     ════════════════════════════════════════ -->
     <view class="mixer-panel">
+      <!-- 状态提示容器：非侵入式，位于滑块下方 -->
+      <view class="engine-status" v-if="audioStatusText">
+        <text class="status-text" :class="audioStatusClass">{{ audioStatusText }}</text>
+      </view>
+
       <view class="panel-header">
         <view class="panel-info">
           <view class="lcd-display">
@@ -247,7 +252,40 @@ interface Scene {
   volumes: Record<string, number>;
 }
 import { AudioCacheManager } from '../../utils/audioCacheManager';
-import { AUDIO_TRACKS, type TrackConfig } from '../../config/index';
+import { AUDIO_TRACKS, DEFAULT_MIX_DURATION, type TrackConfig } from '../../config/index';
+import AudioEngine, { AudioEngineState } from '../../utils/AudioEngine';
+
+/* ─── 音频引擎状态 ─── */
+const audioEngineState = ref<string>(AudioEngineState.IDLE);
+const audioStatusText = computed(() => {
+  switch (audioEngineState.value) {
+    case AudioEngineState.IDLE:
+    case AudioEngineState.LOCAL_MIX:
+      return ''; // 不显示
+    case AudioEngineState.CLOUD_MIXING:
+      return '☁️ 混合合成中...';
+    case AudioEngineState.CLOUD_LOADING:
+      return '☁️ 云加载中...';
+    case AudioEngineState.READY:
+      return '✓ 已就绪';
+    case AudioEngineState.ERROR:
+      return '⚠️ 云端失败，使用本地模式';
+    default:
+      return '';
+  }
+});
+const audioStatusClass = computed(() => {
+  switch (audioEngineState.value) {
+    case AudioEngineState.CLOUD_LOADING:
+      return 'status-loading';
+    case AudioEngineState.READY:
+      return 'status-ready';
+    case AudioEngineState.ERROR:
+      return 'status-error';
+    default:
+      return '';
+  }
+});
 
 /* ─── 8 轨道初始数据 ─── */
 /* ─── 场景管理数据 (Persistence) ─── */
@@ -312,7 +350,7 @@ const applyScene = (scene: Scene) => {
           if (res && isGlobalPlaying.value && t.volume > 0) t.context.play();
         });
       } else if (vol === 0) {
-        t.context.pause();
+        if (t.context.src) t.context.pause();
       }
     }
   });
@@ -476,7 +514,7 @@ const onFaderTouchMove = (trackId: string, event: any) => {
         if (shouldPlay && isGlobalPlaying.value && track.volume > 0) track.context.play();
       });
     } else if (newVol === 0) {
-      track.context.pause();
+      if (track.context.src) track.context.pause();
     }
   }
 };
@@ -484,6 +522,15 @@ const onFaderTouchMove = (trackId: string, event: any) => {
 const onFaderTouchEnd = (_trackId: string) => {
   activeFaderState.value = null;
   saveAudioConfig(); // 拖动结束保存配置
+  
+  // 触发云混音（自动请求后端合成）
+  const activeVolumes = tracks.value
+    .filter((t: Track) => t.volume > 0)
+    .map((t: Track) => ({ id: t.id, vol: t.volume }));
+  
+  if (activeVolumes.length > 0 && isGlobalPlaying.value) {
+    AudioEngine.switchToCloudMix(activeVolumes, DEFAULT_MIX_DURATION);
+  }
 };
 
 /* ─── 长按独奏 (Solo Mode) ─── */
@@ -510,7 +557,9 @@ const onTrackLongPress = (trackId: string) => {
       t.volume = 0;
       if (t.context) {
         t.context.volume = 0;
-        t.context.pause();
+        // 如果该轨道尚未设置 src（未真正加载过），直接 pause 会触发
+        // operateAudio:fail audioInstance is not set
+        if (t.context.src) t.context.pause();
       }
     }
   });
@@ -523,10 +572,39 @@ const onTrackLongPress = (trackId: string) => {
   saveAudioConfig(); // 独奏状态变更保存
 };
 
+/* ─── 音频引擎初始化 ─── */
+const initAudioEngine = () => {
+  // 设置状态变化回调
+  AudioEngine.setCallbacks({
+    onStateChange: (state: string, prevState: string) => {
+      console.log(`[Page] 音频引擎状态变化: ${prevState} -> ${state}`);
+      audioEngineState.value = state;
+    },
+    onProgress: (progress: number) => {
+      console.log(`[Page] 下载进度: ${progress}%`);
+    },
+    onError: (error: any) => {
+      console.error('[Page] 音频引擎错误:', error);
+      uni.showToast({
+        title: '云端合成失败，已切换到本地模式',
+        icon: 'none',
+        duration: 3000
+      });
+    }
+  });
+
+  // 初始化轨道播放器
+  AudioEngine.initTrackPlayers(AUDIO_TRACKS);
+  
+  console.log('[Page] 音频引擎已初始化');
+};
+
 /* ─── 全局控制 ─── */
 const toggleGlobalPlay = () => {
   isGlobalPlaying.value = !isGlobalPlaying.value;
   syncAllTracks();
+  // 同步到音频引擎
+  AudioEngine.togglePlay(isGlobalPlaying.value);
 };
 
 // 核心调度：将 App 变量同步到所有轨道
@@ -540,7 +618,7 @@ const syncAllTracks = () => {
         }
       });
     } else {
-      t.context.pause();
+      if (t.context.src) t.context.pause();
     }
   });
 };
@@ -555,7 +633,7 @@ const resetAll = () => {
            if (shouldPlay && isGlobalPlaying.value && t.volume > 0) t.context.play();
         });
       } else {
-        t.context.pause();
+        if (t.context.src) t.context.pause();
       }
     }
   });
@@ -695,7 +773,10 @@ onMounted(() => {
   // 2. 初始化 Context
   tracks.value.forEach((t: Track) => initTrackContext(t));
   
-  // 3. 应用上次场景
+  // 3. 初始化音频引擎并订阅状态变化
+  initAudioEngine();
+  
+  // 4. 应用上次场景
   if (currentSceneId.value) {
     const scene = scenes.value.find((s: Scene) => s.id === currentSceneId.value);
     if (scene) applyScene(scene);
@@ -1504,5 +1585,65 @@ onUnmounted(() => {
   font-size: 15px;
   color: rgba(255,255,255,0.7);
   line-height: 1.6;
+}
+
+/* ══════════════════════════════════════
+   音频引擎状态提示（非侵入式）
+══════════════════════════════════════ */
+.engine-status {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 0 8px;
+  min-height: 20px;
+}
+
+.status-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+}
+
+/* 加载中状态：带呼吸动画 */
+.status-loading {
+  color: #4ecca3;
+  animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+.status-loading::after {
+  content: '';
+  animation: ellipsis 1.5s steps(4, end) infinite;
+}
+
+/* 就绪状态 */
+.status-ready {
+  color: #4ecca3;
+  opacity: 0.8;
+}
+
+/* 错误状态 */
+.status-error {
+  color: #ff6b6b;
+  animation: status-fade 3s ease-in-out forwards;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes ellipsis {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+  100% { content: ''; }
+}
+
+@keyframes status-fade {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
 }
 </style>
