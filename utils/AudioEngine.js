@@ -443,7 +443,8 @@ class AudioEngine {
      */
     startBgPlay(src, resolve, reject) {
         this.bgAudioManager.title = '眠融 - 白噪音';
-        this.bgAudioManager.loop = true; // 开启循环，播放 120s 小文件即可实现长时间播放
+        // 开启循环必须在设置 src 之前，否则会导致 onEnded 触发后循环失效
+        this.bgAudioManager.loop = true; 
         this.lastBgSrc = src;
         try {
             uni.setStorageSync && uni.setStorageSync('WN_LAST_BG_SRC', src);
