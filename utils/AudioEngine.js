@@ -443,17 +443,18 @@ class AudioEngine {
      */
     startBgPlay(src, resolve, reject) {
         this.bgAudioManager.title = '眠融 - 白噪音';
+        this.bgAudioManager.loop = true; // 开启循环，播放 120s 小文件即可实现长时间播放
         this.lastBgSrc = src;
         try {
             uni.setStorageSync && uni.setStorageSync('WN_LAST_BG_SRC', src);
         } catch (e) {
             // ignore
         }
-        this.bgDebug('setSrc_begin', { nextSrc: src });
+        this.bgDebug('setSrc_begin', { nextSrc: src, loop: true });
         this.bgAudioManager.src = src;
-        
+
         this.bgAudioManager.onPlay(() => {
-            console.log('[AudioEngine] 后端音频开始播放');
+            console.log('[AudioEngine] 后端音频开始播放 (Loop Mode)');
             this.bgDebug('setSrc_onPlay');
             resolve();
         });

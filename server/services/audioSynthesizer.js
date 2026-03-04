@@ -73,42 +73,26 @@ class AudioSynthesizer {
      * @param {number} duration - 秒（可选，不传则自动计算最长轨道时长）
      */
     async synthesize(tracks, duration = null) {
+        // 强制使用短时长切片循环策略，减轻服务端和手机端压力
+        // 前端会自行循环播放这个短文件（例如 120s）
+        const LOOP_DURATION = 120; 
+        duration = LOOP_DURATION;
+
         // 每次合成前清理旧文件
         this.cleanupOldFiles();
 
         const sortedTracks = [...tracks].sort((a, b) => a.id.localeCompare(b.id));
-        
-        // 如果没有传 duration，自动获取最长轨道的长度
-        if (duration === undefined || duration === null) {
-            console.log(`[Synth] No duration provided, calculating max track duration...`);
-            const activeTracks = tracks.filter(t => t.vol > 0);
-            const durations = await Promise.all(
-                activeTracks.map(async (track) => {
-                    const inputPath = path.join(this.sourceDir, `${track.id}.mp3`);
-                    try {
-                        const dur = await this.getAudioDuration(inputPath);
-                        console.log(`[Synth] Track ${track.id} duration: ${dur}s`);
-                        return dur;
-                    } catch (e) {
-                        console.error(`[Synth] Error getting duration for ${track.id}:`, e.message);
-                        return 0;
-                    }
-                })
-            );
-            duration = Math.max(...durations);
-            console.log(`[Synth] Calculated max duration: ${duration}s`);
-        }
 
+        // Hash 生成规则不变，duration 固定为 LOOP_DURATION
         const hash = this.generateHash(sortedTracks, duration);
         const outputPath = path.join(this.tempDir, `${hash}.mp3`);
 
-        console.log(`[Synth] Request received. Hash: ${hash}, Duration: ${duration}s, Tracks:`, JSON.stringify(tracks));
+        console.log(`[Synth] Request received (Loop Mode). Hash: ${hash}, Duration: ${duration}s, Tracks:`, JSON.stringify(tracks));
 
         // 1. 检查本地缓存 (生产环境应检查 Redis/OSS)
         if (fs.existsSync(outputPath)) {
-            // 416 Bug fix: 既然前端报 416，我们直接删掉缓存，强制重新生成
-            console.log(`[Synth] Cache found but deleting to avoid 416 error: ${hash}`);
-            fs.unlinkSync(outputPath);
+            console.log(`[Synth] Cache found: ${hash}`);
+            return { url: `/temp/${hash}.mp3`, hash, cached: true };
         }
         
         console.log(`[Synth] Cache MISS for hash: ${hash}, starting FFmpeg synthesis...`);
@@ -127,7 +111,7 @@ class AudioSynthesizer {
             activeTracks.forEach((track, index) => {
                 // 假设素材文件名为 track.id + '.mp3'
                 const inputPath = path.join(this.sourceDir, `${track.id}.mp3`);
-                command = command.input(inputPath).inputOptions(['-stream_loop -1']); // 循环读取素材
+                command = command.input(inputPath).inputOptions(['-stream_loop -1']);
 
                 // 滤镜链：调节音量
                 filterInputs.push(`[${index}:a]volume=${track.vol}[a${index}]`);
@@ -137,11 +121,15 @@ class AudioSynthesizer {
             const amixInputs = activeTracks.map((_, i) => `[a${i}]`).join('');
             const filterComplex = [
                 ...filterInputs,
-                `${amixInputs}amix=inputs=${activeTracks.length}:duration=first:dropout_transition=2[out]`
+                // amix duration=first 确保混音时长以第一个输入为准（这里已经是固定 duration）
+                // 加上 fade-out 防止循环时的爆音
+                `${amixInputs}amix=inputs=${activeTracks.length}:duration=first:dropout_transition=2[out]`,
+                // 全局淡出，避免循环时爆音
+                '[out]afade=t=out:st=115:d=5[out_faded]'
             ].join(';');
 
             command
-                .complexFilter(filterComplex, 'out')
+                .complexFilter(filterComplex, 'out_faded')
                 .duration(duration) // 限制合成时长
                 .audioChannels(2)
                 .audioCodec('libmp3lame')
@@ -150,7 +138,7 @@ class AudioSynthesizer {
                 .on('error', (err) => reject(err))
                 .on('end', () => {
                     console.log('FFmpeg finished:', hash);
-                    resolve({ url: `/temp/${hash}.mp3`, hash, cached: false });
+                    resolve({ url: `/temp/${hash}.mp3`, hash, cached: false, duration: duration });
                 })
                 .save(outputPath);
         });
