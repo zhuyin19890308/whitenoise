@@ -1,0 +1,25 @@
+# Docker
+.dockerignore
+Dockerfile
+
+# 脚本和配置
+test.sh
+nginx_nas.conf
+
+# 临时文件
+temp/
+*.log
+*.tar
+*.gz
+
+# Git
+.git/
+.gitignore
+
+# 开发工具
+.vscode/
+.idea/
+
+# 测试
+test/
+*.test.js
