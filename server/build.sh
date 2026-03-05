@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # 构建脚本 - 读取 package.json 版本号，构建 Docker 镜像并保存为 tar
+# 用法：
+#   ./build.sh           - 完整构建和部署
+#   ./build.sh --deploy-only  - 仅远程部署（使用已存在的 tar 文件）
 
 set -e
 
@@ -27,26 +30,34 @@ BASE_URL="https://sounds.zhuyin.pro:1024"
 
 # ==================================
 
+# 解析参数
+DEPLOY_ONLY=false
+if [[ "$1" == "--deploy-only" ]]; then
+    DEPLOY_ONLY=true
+fi
+
 # 读取版本号
 VERSION=$(node -p "require('./package.json').version")
 
-echo "Building whitenoise-server v${VERSION} ..."
+if [ "$DEPLOY_ONLY" = false ]; then
+    echo "Building whitenoise-server v${VERSION} ..."
 
-#（支持多平台 构建 Docker 镜像）
-docker build --platform linux/amd64 -t ${DOCKER_USERNAME}/whitenoise-server:${VERSION} .
+    #（支持多平台 构建 Docker 镜像）
+    docker build --platform linux/amd64 -t ${DOCKER_USERNAME}/whitenoise-server:${VERSION} .
 
-# 推送到 Docker Hub（可选，取消注释启用）
-# docker push ${DOCKER_USERNAME}/whitenoise-server:${VERSION}
+    # 推送到 Docker Hub（可选，取消注释启用）
+    # docker push ${DOCKER_USERNAME}/whitenoise-server:${VERSION}
 
-# 导出为 tar 文件
-echo "Saving to whitenoise-v${VERSION}.tar ..."
-docker save -o whitenoise-v${VERSION}.tar ${DOCKER_USERNAME}/whitenoise-server:${VERSION}
+    # 导出为 tar 文件
+    echo "Saving to whitenoise-v${VERSION}.tar ..."
+    docker save -o whitenoise-v${VERSION}.tar ${DOCKER_USERNAME}/whitenoise-server:${VERSION}
 
-echo "Done! Created: whitenoise-v${VERSION}.tar"
+    echo "Done! Created: whitenoise-v${VERSION}.tar"
 
-# 复制到远程服务器
-echo "Copying to remote server ..."
-scp -P ${SSH_PORT} whitenoise-v${VERSION}.tar ${SSH_USER}@${SSH_HOST}:${TARGET_DIR}/
+    # 复制到远程服务器
+    echo "Copying to remote server ..."
+    scp -P ${SSH_PORT} whitenoise-v${VERSION}.tar ${SSH_USER}@${SSH_HOST}:${TARGET_DIR}/
+fi
 
 # 在远程服务器上部署
 echo "Deploying on remote server ..."
@@ -54,7 +65,15 @@ ssh -p ${SSH_PORT} ${SSH_USER}@${SSH_HOST} << EOF
     cd ${TARGET_DIR}
     
     # 停止并删除旧容器
-    docker rm -f ${CONTAINER_NAME}
+    docker rm -f ${CONTAINER_NAME} || true
+    
+    # 删除旧镜像（避免 "already exists" 警告）
+    docker rmi ${DOCKER_USERNAME}/whitenoise-server:${VERSION} || true
+    
+    # 删除旧的 tar 文件（仅在非 deploy-only 模式）
+    if [ "${1}" != "--deploy-only" ]; then
+        rm -f whitenoise-v${VERSION}.tar
+    fi
     
     # 加载新镜像
     docker load -i whitenoise-v${VERSION}.tar

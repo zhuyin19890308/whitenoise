@@ -257,6 +257,8 @@ import AudioEngine, { AudioEngineState } from '../../utils/AudioEngine';
 
 /* ─── 音频引擎状态 ─── */
 const audioEngineState = ref<string>(AudioEngineState.IDLE);
+let readyTimer: ReturnType<typeof setTimeout> | null = null;
+
 const audioStatusText = computed(() => {
   switch (audioEngineState.value) {
     case AudioEngineState.IDLE:
@@ -267,7 +269,7 @@ const audioStatusText = computed(() => {
     case AudioEngineState.CLOUD_LOADING:
       return '☁️ 云加载中...';
     case AudioEngineState.READY:
-      return '✓ 已就绪';
+      return '✓ 已就绪，当前支持后台循环';
     case AudioEngineState.ERROR:
       return '⚠️ 云端失败，使用本地模式';
     default:
@@ -595,6 +597,14 @@ const initAudioEngine = () => {
     onStateChange: (state: string, prevState: string) => {
       console.log(`[Page] 音频引擎状态变化: ${prevState} -> ${state}`);
       audioEngineState.value = state;
+
+      // READY 状态 5 秒后隐藏
+      if (state === AudioEngineState.READY) {
+        if (readyTimer) clearTimeout(readyTimer);
+        readyTimer = setTimeout(() => {
+          audioEngineState.value = AudioEngineState.IDLE;
+        }, 5000);
+      }
     },
     onProgress: (progress: number) => {
       console.log(`[Page] 下载进度: ${progress}%`);
