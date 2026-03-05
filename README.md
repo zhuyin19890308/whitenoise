@@ -115,6 +115,49 @@ docker logs mianrong-backend
 - `--tmpfs /app/temp:size=512M`：混音临时文件目录放在内存盘，加速合成。
 - `BASE_URL=https://sounds.zhuyin.pro:1024`：后端在返回合成 URL 时使用该前缀，需与前端 `LUCKY_BASE_URL` 对齐。
 
+### 私有云音频分发架构
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend as 小程序 (BackgroundAudioManager)
+    participant Lucky as Lucky Proxy<br/>(Port 1024)
+    participant Server as Node.js + FFmpeg<br/>(Docker Container)
+    participant RAMDisk as tmpfs /app/temp<br/>(RAM Disk)
+
+    User->>Frontend: 调节音轨音量 (Slider)
+    Frontend->>Frontend: 防抖 (Debounce 600ms)
+    
+    alt 本地已缓存
+        Frontend->>Frontend: 直接使用本地缓存文件
+        Frontend->>Frontend: 更新 BackgroundAudioManager.src
+    else 需要请求云端
+        Frontend->>Lucky: POST /api/v1/synthesize
+        Lucky->>Server: 转发请求
+        Server->>Server: 计算参数 MD5 Hash
+        
+        alt 缓存命中 (Server tmpfs)
+            Server-->>Lucky: 返回 /temp/{hash}.mp3
+        else 缓存未命中
+            Server->>RAMDisk: FFmpeg 多轨混音
+            RAMDisk-->>Server: 生成临时 MP3
+            Server-->>Lucky: 返回 /temp/{hash}.mp3
+        end
+        
+        Lucky-->>Frontend: 返回完整 URL
+        Frontend->>Frontend: downloadFile 下载到本地
+        Frontend->>Frontend: saveFile 持久化存储
+        Frontend->>Frontend: 更新 BackgroundAudioManager.src
+    end
+```
+
+**架构说明：**
+- **FFmpeg** 运行在 Node.js Docker 容器内部（通过 `fluent-ffmpeg` 库调用）
+- **Server tmpfs** 使用内存盘 (`--tmpfs /app/temp`) 存储混音临时文件，加速合成
+- **前端本地缓存**：小程序会先检查本地是否已有对应 Hash 的混合文件，命中则直接使用
+- **下载到本地播放**：前端不会直接播放远程 URL，而是先 `downloadFile` 下载到本地，再 `saveFile` 持久化，最后通过 `BackgroundAudioManager` 播放本地文件
+- **Lucky Proxy** 统一代理 API 请求和生成的 MP3 文件访问
+
 ### 2. 动态音源配置（前端）
 
 - 配置文件：`config/index.ts`

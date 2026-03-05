@@ -124,13 +124,17 @@ class AudioEngine {
                 this.bgAudioManager.onEnded(() => {
                     this.bgDebug('onEnded');
                     // 监听播放结束，重新设置 src 实现单曲循环
-                    if (this.bgAudioManager.src) {
-                        const currentSrc = this.bgAudioManager.src;
-                        this.bgAudioManager.src = ''; // 先清空，防止某些机型不触发
+                    if (this.lastBgSrc) {
+                        const currentSrc = this.lastBgSrc;
+                        // 直接设置新 src，不要先设置空字符串（某些机型会报错）
                         setTimeout(() => {
-                            this.bgAudioManager.src = currentSrc;
-                            this.bgAudioManager.play();
-                        }, 200); // 稍微延迟一下，确保状态切换
+                            try {
+                                this.bgAudioManager.src = currentSrc;
+                                this.bgAudioManager.play();
+                            } catch (e) {
+                                console.warn('[AudioEngine] onEnded 循环播放失败:', e);
+                            }
+                        }, 200);
                     }
                 });
 
