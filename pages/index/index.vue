@@ -568,7 +568,17 @@ const onTrackLongPress = (trackId: string) => {
   if (selectedTrack) {
     uni.showToast({ title: `已独奏: ${selectedTrack.name}`, icon: 'none' });
   }
-  
+
+  // 独奏后重新触发云混音，确保后台播放的是独奏音轨
+  if (isGlobalPlaying.value) {
+    const activeVolumes = tracks.value
+      .filter((t: Track) => t.volume > 0)
+      .map((t: Track) => ({ id: t.id, vol: t.volume }));
+    if (activeVolumes.length > 0) {
+      AudioEngine.switchToCloudMix(activeVolumes, DEFAULT_MIX_DURATION);
+    }
+  }
+
   saveAudioConfig(); // 独奏状态变更保存
 };
 
