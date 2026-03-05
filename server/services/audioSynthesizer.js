@@ -122,10 +122,13 @@ class AudioSynthesizer {
             const filterComplex = [
                 ...filterInputs,
                 // amix duration=first 确保混音时长以第一个输入为准（这里已经是固定 duration）
+                // 加上 fade-in 防止开始时的爆音
                 // 加上 fade-out 防止循环时的爆音
                 `${amixInputs}amix=inputs=${activeTracks.length}:duration=first:dropout_transition=2[out]`,
+                // 全局淡入，避免开始时爆音
+                '[out]afade=t=in:st=0:d=3[out_faded_in]',
                 // 全局淡出，避免循环时爆音
-                '[out]afade=t=out:st=115:d=5[out_faded]'
+                '[out_faded_in]afade=t=out:st=115:d=5[out_faded]'
             ].join(';');
 
             command
