@@ -483,10 +483,18 @@ class AudioEngine {
 
     /**
      * App 回到前台时尝试恢复后台音频播放
+     * 注意：首次打开时不自动恢复，需要用户手动点击播放
      */
     onAppShow() {
         if (!this.bgAudioManager) return;
         if (!this.lastBgSrc) return;
+
+        // 如果之前不在 READY 状态（正在播放），则不自动恢复
+        // 这样确保每次打开 app 都需要用户手动点击播放
+        if (this.prevState !== AudioEngineState.READY) {
+            this.bgDebug('onAppShow_skip_not_ready');
+            return;
+        }
 
         // READY 状态下优先恢复 Mode B
         try {
@@ -540,14 +548,15 @@ class AudioEngine {
         if (isPlaying) {
             // 从暂停恢复播放
             if (this.state === AudioEngineState.LOCAL_MIX || this.state === AudioEngineState.IDLE) {
-                // Mode A：恢复本地多路混音
-                this.playActiveTracks();
-
-                // 如果有活跃音轨且当前是 IDLE 状态，自动触发云混音以显示后台播放浮动窗口
+                // 用户点击播放时，直接触发云混音（不先播放本地混音）
+                // 这样可以显示后台播放浮动窗口
                 const activeTracks = this.getTrackVolumes().filter(t => t.vol > 0);
-                if (this.state === AudioEngineState.IDLE && activeTracks.length > 0) {
-                    console.log('[AudioEngine] 首次播放，触发云混音以显示后台窗口');
+                if (activeTracks.length > 0) {
+                    console.log('[AudioEngine] 用户点击播放，触发云混音');
                     this.switchToCloudMix(activeTracks, this.currentDuration);
+                } else {
+                    // 没有活跃音轨时才播放本地混音（静音状态）
+                    this.playActiveTracks();
                 }
             } else if (this.state === AudioEngineState.READY) {
                 // Mode B：恢复后台单文件
