@@ -542,6 +542,13 @@ class AudioEngine {
             if (this.state === AudioEngineState.LOCAL_MIX || this.state === AudioEngineState.IDLE) {
                 // Mode A：恢复本地多路混音
                 this.playActiveTracks();
+
+                // 如果有活跃音轨且当前是 IDLE 状态，自动触发云混音以显示后台播放浮动窗口
+                const activeTracks = this.getTrackVolumes().filter(t => t.vol > 0);
+                if (this.state === AudioEngineState.IDLE && activeTracks.length > 0) {
+                    console.log('[AudioEngine] 首次播放，触发云混音以显示后台窗口');
+                    this.switchToCloudMix(activeTracks, this.currentDuration);
+                }
             } else if (this.state === AudioEngineState.READY) {
                 // Mode B：恢复后台单文件
                 if (this.bgAudioManager) {
