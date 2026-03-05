@@ -75,7 +75,7 @@ class AudioSynthesizer {
     async synthesize(tracks, duration = null) {
         // 强制使用短时长切片循环策略，减轻服务端和手机端压力
         // 前端会自行循环播放这个短文件（例如 120s）
-        const LOOP_DURATION = 120; 
+        const LOOP_DURATION = 120;
         duration = LOOP_DURATION;
 
         // 每次合成前清理旧文件
@@ -94,19 +94,35 @@ class AudioSynthesizer {
             console.log(`[Synth] Cache found: ${hash}`);
             return { url: `/temp/${hash}.mp3`, hash, cached: true };
         }
-        
+
         console.log(`[Synth] Cache MISS for hash: ${hash}, starting FFmpeg synthesis...`);
 
         // 2. FFmpeg 混音逻辑
+        const activeTracks = tracks.filter(t => t.vol > 0);
+
+        // 所有音量为0时，生成静音文件
+        if (activeTracks.length === 0) {
+            console.log('[Synth] No active tracks, generating silent audio');
+            return new Promise((resolve, reject) => {
+                ffmpeg()
+                    .input('anullsrc=r=44100:cl=stereo')
+                    .inputOptions(['-f', 'lavfi', '-loop', '1'])
+                    .complexFilter('[0:a]volume=0[aout]', '-map', '[aout]')
+                    .duration(duration)
+                    .audioCodec('libmp3lame')
+                    .audioBitrate('128k')
+                    .on('error', (err) => reject(err))
+                    .on('end', () => {
+                        resolve({ url: `/temp/${hash}.mp3`, hash, cached: false, duration: duration });
+                    })
+                    .save(outputPath);
+            });
+        }
+
+        // 正常混音逻辑
         return new Promise((resolve, reject) => {
             let command = ffmpeg();
-
             const filterInputs = [];
-            const activeTracks = tracks.filter(t => t.vol > 0);
-
-            if (activeTracks.length === 0) {
-                return reject(new Error('No active tracks to mix'));
-            }
 
             activeTracks.forEach((track, index) => {
                 // 假设素材文件名为 track.id + '.mp3'

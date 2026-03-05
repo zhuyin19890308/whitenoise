@@ -522,14 +522,17 @@ const onFaderTouchMove = (trackId: string, event: any) => {
 const onFaderTouchEnd = (_trackId: string) => {
   activeFaderState.value = null;
   saveAudioConfig(); // 拖动结束保存配置
-  
+
   // 触发云混音（自动请求后端合成）
   const activeVolumes = tracks.value
     .filter((t: Track) => t.volume > 0)
     .map((t: Track) => ({ id: t.id, vol: t.volume }));
-  
+
   if (activeVolumes.length > 0 && isGlobalPlaying.value) {
     AudioEngine.switchToCloudMix(activeVolumes, DEFAULT_MIX_DURATION);
+  } else if (activeVolumes.length === 0 && isGlobalPlaying.value) {
+    // 所有音量为0时，停止云端播放
+    AudioEngine.stop();
   }
 };
 
@@ -576,6 +579,9 @@ const onTrackLongPress = (trackId: string) => {
       .map((t: Track) => ({ id: t.id, vol: t.volume }));
     if (activeVolumes.length > 0) {
       AudioEngine.switchToCloudMix(activeVolumes, DEFAULT_MIX_DURATION);
+    } else {
+      // 所有音量为0时，停止云端播放
+      AudioEngine.stop();
     }
   }
 
@@ -647,6 +653,19 @@ const resetAll = () => {
       }
     }
   });
+
+  // 重置后同步云混音
+  const activeVolumes = tracks.value
+    .filter((t: Track) => t.volume > 0)
+    .map((t: Track) => ({ id: t.id, vol: t.volume }));
+
+  if (activeVolumes.length > 0 && isGlobalPlaying.value) {
+    AudioEngine.switchToCloudMix(activeVolumes, DEFAULT_MIX_DURATION);
+  } else if (activeVolumes.length === 0 && isGlobalPlaying.value) {
+    // 所有音量为0时，停止云端播放
+    AudioEngine.stop();
+  }
+
   uni.showToast({ title: '已恢复默认配置', icon: 'none' });
   saveAudioConfig(); // 重置后保存
 };
