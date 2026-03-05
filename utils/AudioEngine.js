@@ -326,6 +326,61 @@ class AudioEngine {
     }
 
     /**
+     * 渐出所有活跃轨道（降低到指定音量）
+     * @param {number} targetVolume 目标音量，默认 0.05
+     * @param {number} fadeDuration 渐出时长（毫秒），默认 500ms
+     * @returns {Promise} 渐出完成后 resolve
+     */
+    fadeOutActiveTracks(targetVolume = 0.05, fadeDuration = 500) {
+        return new Promise((resolve) => {
+            const activePlayers = [];
+            this.trackPlayers.forEach((player) => {
+                if (player.isPlaying && player.volume > 0) {
+                    activePlayers.push(player);
+                }
+            });
+
+            if (activePlayers.length === 0) {
+                resolve();
+                return;
+            }
+
+            const startTime = Date.now();
+            const initialVolumes = activePlayers.map(p => p.volume);
+            const step = 50;
+            const fadeStep = initialVolumes.map((v, i) =>
+                (v - targetVolume) / (fadeDuration / step)
+            );
+
+            const fadeOut = () => {
+                const elapsed = Date.now() - startTime;
+                if (elapsed >= fadeDuration) {
+                    activePlayers.forEach((player, i) => {
+                        player.volume = targetVolume;
+                        if (player.context) {
+                            player.context.volume = targetVolume;
+                        }
+                    });
+                    resolve();
+                    return;
+                }
+
+                activePlayers.forEach((player, i) => {
+                    const newVol = Math.max(targetVolume, initialVolumes[i] - fadeStep[i] * (elapsed / step));
+                    player.volume = newVol;
+                    if (player.context) {
+                        player.context.volume = newVol;
+                    }
+                });
+
+                setTimeout(fadeOut, step);
+            };
+
+            fadeOut();
+        });
+    }
+
+    /**
      * ==================== Mode B：后端单文件 ====================
      * 
      * 请求后端合成并下载混合音频
@@ -347,16 +402,19 @@ class AudioEngine {
 
         // 1. 取消之前的下载任务
         this.resourceManager && this.resourceManager.cancelCurrentDownload();
-        
+
         // 2. 停止后台音频
         this.stopBackgroundAudio();
-        
-        // 3. 切换到本地混音（保持播放）
+
+        // 3. 切换到本地混音（保持播放）并渐出到 0.05
         this.setState(AudioEngineState.LOCAL_MIX);
         this.playActiveTracks();
 
         // 4. 请求后端合成
         this.setState(AudioEngineState.CLOUD_LOADING);
+
+        // 同时开始本地轨道渐出到 0.05
+        this.fadeOutActiveTracks(0.05, 500);
 
         try {
             const localPath = await this.resourceManager.queueMixedDownload(
@@ -372,17 +430,17 @@ class AudioEngine {
                     },
                     onSuccess: async (path) => {
                         console.log('[AudioEngine] 混合音频下载成功:', path);
-                        
-                        // 3. 停止本地轨道
+
+                        // 停止本地轨道（音量已在渐出后降至 0.05）
                         this.stopAllLocalTracks();
 
-                        // 4. 切换到后端音频播放
+                        // 切换到后端音频播放
                         await this.playBackgroundAudio(path);
 
-                        // 5. 更新状态
+                        // 更新状态
                         this.setState(AudioEngineState.READY);
 
-                        // 6. 几秒后隐藏提示
+                        // 几秒后隐藏提示
                         setTimeout(() => {
                             if (this.state === AudioEngineState.READY) {
                                 // 保持 READY 状态
