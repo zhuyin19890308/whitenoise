@@ -316,12 +316,115 @@ class AudioEngine {
     }
 
     /**
-     * 停止所有本地轨道
+     * 停止所有本地轨道（带渐出效果）
+     * @param {number} fadeDuration 渐出时长（毫秒），默认 500ms
      */
-    stopAllLocalTracks() {
-        this.trackPlayers.forEach((player) => {
-            player.isPlaying = false;
-            player.context && player.context.pause();
+    stopAllLocalTracks(fadeDuration = 500) {
+        return new Promise((resolve) => {
+            // 记录当前播放的轨道
+            const playingPlayers = [];
+            this.trackPlayers.forEach((player) => {
+                if (player.isPlaying && player.volume > 0) {
+                    playingPlayers.push(player);
+                }
+            });
+
+            if (playingPlayers.length === 0) {
+                // 没有播放的轨道，直接停止
+                this.trackPlayers.forEach((player) => {
+                    player.isPlaying = false;
+                    player.context && player.context.pause();
+                });
+                resolve();
+                return;
+            }
+
+            // 渐出效果：逐步降低音量
+            const startTime = Date.now();
+            const initialVolumes = playingPlayers.map(p => p.volume);
+            const step = 50; // 每步 50ms
+            const fadeStep = initialVolumes.map(v => v / (fadeDuration / step));
+
+            const fadeOut = () => {
+                const elapsed = Date.now() - startTime;
+                if (elapsed >= fadeDuration) {
+                    // 渐出完成，真正停止
+                    this.trackPlayers.forEach((player) => {
+                        player.isPlaying = false;
+                        player.context && player.context.pause();
+                    });
+                    resolve();
+                    return;
+                }
+
+                // 更新音量
+                playingPlayers.forEach((player, i) => {
+                    const newVol = Math.max(0, initialVolumes[i] - fadeStep[i] * (elapsed / step));
+                    player.volume = newVol;
+                    if (player.context) {
+                        player.context.volume = newVol;
+                    }
+                });
+
+                setTimeout(fadeOut, step);
+            };
+
+            fadeOut();
+        });
+    }
+
+    /**
+     * 播放所有活跃轨道（带渐入效果）
+     * @param {number} fadeDuration 渐入时长（毫秒），默认 500ms
+     */
+    playActiveTracks(fadeDuration = 500) {
+        return new Promise((resolve) => {
+            const activePlayers = [];
+            this.trackPlayers.forEach((player) => {
+                if (player.volume > 0) {
+                    activePlayers.push(player);
+                    player.isPlaying = true;
+                }
+            });
+
+            if (activePlayers.length === 0) {
+                resolve();
+                return;
+            }
+
+            // 先将音量设为 0
+            activePlayers.forEach(player => {
+                player.context.volume = 0;
+                player.context.play();
+            });
+
+            // 渐入效果：逐步增加音量
+            const startTime = Date.now();
+            const targetVolumes = activePlayers.map(p => p.volume);
+            const step = 50;
+            const fadeStep = targetVolumes.map(v => v / (fadeDuration / step));
+
+            const fadeIn = () => {
+                const elapsed = Date.now() - startTime;
+                if (elapsed >= fadeDuration) {
+                    // 渐入完成，设置为目标音量
+                    activePlayers.forEach((player, i) => {
+                        player.context.volume = targetVolumes[i];
+                    });
+                    resolve();
+                    return;
+                }
+
+                // 更新音量
+                activePlayers.forEach((player, i) => {
+                    const newVol = Math.min(targetVolumes[i], fadeStep[i] * (elapsed / step));
+                    player.context.volume = newVol;
+                });
+
+                setTimeout(fadeIn, step);
+            };
+
+            fadeIn();
         });
     }
 
@@ -351,9 +454,9 @@ class AudioEngine {
         // 2. 停止后台音频
         this.stopBackgroundAudio();
         
-        // 3. 切换到本地混音（保持播放）
+        // 3. 切换到本地混音（保持播放，带渐入）
         this.setState(AudioEngineState.LOCAL_MIX);
-        this.playActiveTracks();
+        await this.playActiveTracks(500);
 
         // 4. 请求后端合成
         this.setState(AudioEngineState.CLOUD_LOADING);
@@ -372,12 +475,12 @@ class AudioEngine {
                     },
                     onSuccess: async (path) => {
                         console.log('[AudioEngine] 混合音频下载成功:', path);
-                        
-                        // 3. 停止本地轨道
-                        this.stopAllLocalTracks();
 
-                        // 4. 切换到后端音频播放
-                        await this.playBackgroundAudio(path);
+                        // 3. 本地轨道渐出停止
+                        await this.stopAllLocalTracks(800);
+
+                        // 4. 切换到后端音频播放（渐入）
+                        await this.playBackgroundAudio(path, true);
 
                         // 5. 更新状态
                         this.setState(AudioEngineState.READY);
@@ -403,8 +506,9 @@ class AudioEngine {
     /**
      * 使用 BackgroundAudioManager 播放后端音频
      * @param {string} localPath 本地文件路径
+     * @param {boolean} fadeIn 是否渐入播放
      */
-    async playBackgroundAudio(localPath) {
+    async playBackgroundAudio(localPath, fadeIn = false) {
         if (!this.bgAudioManager) {
             console.warn('[AudioEngine] BackgroundAudioManager 不可用');
             return;
@@ -414,7 +518,7 @@ class AudioEngine {
             // BackgroundAudioManager 需要网络 URL 或本地临时路径
             // 本地持久化路径需要转换为临时路径
             let src = localPath;
-            
+
             // 如果是本地文件，复制到临时目录
             if (localPath.includes(uni.env.USER_DATA_PATH)) {
                 const tempPath = `${uni.env.TEMP_PATH || '/tmp'}/mixed_${Date.now()}.mp3`;
@@ -425,12 +529,12 @@ class AudioEngine {
                         destPath: tempPath,
                         success: () => {
                             src = tempPath;
-                            this.startBgPlay(src, resolve, reject);
+                            this.startBgPlay(src, resolve, reject, fadeIn);
                         },
                         fail: (err) => {
                             // 复制失败，直接尝试播放原始路径
                             console.warn('[AudioEngine] 复制临时文件失败:', err);
-                            this.startBgPlay(src, resolve, reject);
+                            this.startBgPlay(src, resolve, reject, fadeIn);
                         }
                     });
                     return;
@@ -438,18 +542,22 @@ class AudioEngine {
                     console.warn('[AudioEngine] 文件操作失败:', e);
                 }
             }
-            
-            this.startBgPlay(src, resolve, reject);
+
+            this.startBgPlay(src, resolve, reject, fadeIn);
         });
     }
 
     /**
      * 启动后台播放
+     * @param {string} src 音频路径
+     * @param {function} resolve Promise resolve
+     * @param {function} reject Promise reject
+     * @param {boolean} fadeIn 是否渐入播放
      */
-    startBgPlay(src, resolve, reject) {
+    startBgPlay(src, resolve, reject, fadeIn = false) {
         this.bgAudioManager.title = '眠融 - 白噪音';
         // 注释掉 loop = true，改为手动在 onEnded 中重新设置 src 实现循环（更可靠）
-        // this.bgAudioManager.loop = true; 
+        // this.bgAudioManager.loop = true;
         this.lastBgSrc = src;
         try {
             uni.setStorageSync && uni.setStorageSync('WN_LAST_BG_SRC', src);
@@ -457,17 +565,95 @@ class AudioEngine {
             // ignore
         }
         this.bgDebug('setSrc_begin', { nextSrc: src });
+
+        // 如果需要渐入，先设置音量为 0
+        if (fadeIn) {
+            this.bgAudioManager.volume = 0;
+        }
+
         this.bgAudioManager.src = src;
 
         this.bgAudioManager.onPlay(() => {
             console.log('[AudioEngine] 后端音频开始播放 (Loop Mode)');
             this.bgDebug('setSrc_onPlay');
+
+            // 渐入效果
+            if (fadeIn) {
+                this.fadeInBgAudio();
+            }
+
             resolve();
         });
 
         this.bgAudioManager.onError((err) => {
             this.bgDebug('setSrc_onError', { err });
             reject(new Error(err?.errMsg || '播放失败'));
+        });
+    }
+
+    /**
+     * 后台音频渐入效果
+     */
+    fadeInBgAudio(fadeDuration = 800) {
+        if (!this.bgAudioManager) return;
+
+        const step = 50;
+        const steps = fadeDuration / step;
+        let currentStep = 0;
+
+        const fadeIn = () => {
+            if (currentStep >= steps || !this.bgAudioManager) return;
+
+            currentStep++;
+            const volume = Math.min(1, currentStep / steps);
+            this.bgAudioManager.volume = volume;
+
+            if (currentStep < steps) {
+                setTimeout(fadeIn, step);
+            }
+        };
+
+        // 延迟一点开始渐入，确保播放已开始
+        setTimeout(fadeIn, 100);
+    }
+
+    /**
+     * 后台音频渐出效果
+     */
+    fadeOutBgAudio(fadeDuration = 800) {
+        return new Promise((resolve) => {
+            if (!this.bgAudioManager) {
+                resolve();
+                return;
+            }
+
+            const step = 50;
+            const steps = fadeDuration / step;
+            let currentStep = 0;
+            const startVolume = this.bgAudioManager.volume || 1;
+
+            const fadeOut = () => {
+                if (currentStep >= steps || !this.bgAudioManager) {
+                    this.bgAudioManager.pause();
+                    this.bgAudioManager.volume = startVolume; // 恢复音量
+                    resolve();
+                    return;
+                }
+
+                currentStep++;
+                const volume = Math.max(0, startVolume * (1 - currentStep / steps));
+                this.bgAudioManager.volume = volume;
+
+                if (currentStep < steps) {
+                    setTimeout(fadeOut, step);
+                } else {
+                    this.bgAudioManager.pause();
+                    this.bgAudioManager.volume = startVolume;
+                    resolve();
+                }
+            };
+
+            fadeOut();
         });
     }
 
@@ -529,10 +715,10 @@ class AudioEngine {
         this.callbacks.onError && this.callbacks.onError(error);
 
         // 自动回退到本地模式
-        setTimeout(() => {
+        setTimeout(async () => {
             console.log('[AudioEngine] 自动回退到本地模式');
             this.setState(AudioEngineState.LOCAL_MIX);
-            this.playActiveTracks();
+            await this.playActiveTracks(500);
         }, 3000);
     }
 
@@ -571,14 +757,19 @@ class AudioEngine {
             }
         } else {
             // 暂停：本地混音 + 后台单文件都进入暂停态，但不销毁实例
-            this.stopAllLocalTracks();
+            // 本地轨道渐出停止
+            this.stopAllLocalTracks(300);
             if (this.bgAudioManager) {
                 this.bgDebug('togglePlay_pause_bg');
-                try {
-                    this.bgAudioManager.pause();
-                } catch (e) {
-                    // ignore
-                }
+                // 后台音频渐出暂停
+                this.fadeOutBgAudio(300).then(() => {
+                    // 渐出完成后确保暂停
+                    try {
+                        this.bgAudioManager.pause();
+                    } catch (e) {
+                        // ignore
+                    }
+                });
             }
         }
     }
