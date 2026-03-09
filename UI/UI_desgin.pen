@@ -2426,8 +2426,8 @@
                 {
                   "type": "frame",
                   "id": "rGjWz",
-                  "x": 110,
-                  "y": 4,
+                  "x": 129,
+                  "y": 8,
                   "name": "vipBadge2",
                   "width": 36,
                   "height": 18,
@@ -3171,10 +3171,10 @@
               "type": "frame",
               "id": "zfrVR",
               "x": 20,
-              "y": 0,
+              "y": 107,
               "name": "card1",
               "width": 362,
-              "height": 88,
+              "height": 60,
               "fill": "#1A203580",
               "cornerRadius": 24,
               "stroke": {
@@ -3191,7 +3191,7 @@
                   "type": "icon_font",
                   "id": "QymkZ",
                   "x": 20,
-                  "y": 32,
+                  "y": 18,
                   "name": "rainIcon",
                   "width": 24,
                   "height": 24,
@@ -3203,7 +3203,7 @@
                   "type": "text",
                   "id": "LpyCh",
                   "x": 56,
-                  "y": 28,
+                  "y": 11,
                   "name": "rainText",
                   "fill": "#FAFAF9",
                   "content": "Rainfall",
@@ -3215,7 +3215,7 @@
                   "type": "text",
                   "id": "ocT3J",
                   "x": 56,
-                  "y": 50,
+                  "y": 34,
                   "name": "rainSub",
                   "fill": "#8E8E93",
                   "content": "Gentle rain on roof",
@@ -3226,11 +3226,12 @@
                 {
                   "type": "frame",
                   "id": "80CDH",
-                  "x": 260,
-                  "y": 20,
+                  "x": 284,
+                  "y": 28,
                   "name": "slider1",
+                  "rotation": -90,
                   "width": 4,
-                  "height": 48,
+                  "height": 90,
                   "layout": "none",
                   "children": [
                     {
@@ -3238,18 +3239,18 @@
                       "cornerRadius": 2,
                       "id": "OI2S1",
                       "x": 0,
-                      "y": 0,
+                      "y": -3,
                       "name": "sliderBg1",
                       "fill": "#2A2A35",
                       "width": 4,
-                      "height": 48
+                      "height": 90
                     },
                     {
                       "type": "rectangle",
                       "cornerRadius": 2,
                       "id": "qwfkq",
                       "x": 0,
-                      "y": 14,
+                      "y": 56,
                       "name": "sliderFill1",
                       "fill": "#6366F1",
                       "width": 4,
@@ -3261,7 +3262,7 @@
                   "type": "icon_font",
                   "id": "ZBUZ5",
                   "x": 330,
-                  "y": 36,
+                  "y": 22,
                   "name": "closeBtn",
                   "width": 16,
                   "height": 16,
@@ -3275,10 +3276,10 @@
               "type": "frame",
               "id": "9tgLT",
               "x": 20,
-              "y": 104,
+              "y": 173,
               "name": "card2",
               "width": 362,
-              "height": 88,
+              "height": 60,
               "fill": "#1A203580",
               "cornerRadius": 24,
               "stroke": {
@@ -3286,7 +3287,8 @@
               },
               "effect": {
                 "type": "blur",
-                "radius": 20
+                "radius": 20,
+                "enabled": false
               },
               "layout": "none",
               "children": [
@@ -3294,7 +3296,7 @@
                   "type": "icon_font",
                   "id": "WokUw",
                   "x": 20,
-                  "y": 32,
+                  "y": 18,
                   "name": "forestIcon",
                   "width": 24,
                   "height": 24,
@@ -3306,7 +3308,7 @@
                   "type": "text",
                   "id": "UUt5p",
                   "x": 56,
-                  "y": 28,
+                  "y": 11,
                   "name": "forestText",
                   "fill": "#FAFAF9",
                   "content": "Forest Birds",
@@ -3318,7 +3320,7 @@
                   "type": "text",
                   "id": "Yh0nu",
                   "x": 56,
-                  "y": 50,
+                  "y": 34,
                   "name": "forestSub",
                   "fill": "#8E8E93",
                   "content": "Morning birdsong",
@@ -3329,11 +3331,12 @@
                 {
                   "type": "frame",
                   "id": "p15GI",
-                  "x": 260,
-                  "y": 20,
+                  "x": 284,
+                  "y": 28,
                   "name": "slider2",
+                  "rotation": -90,
                   "width": 4,
-                  "height": 48,
+                  "height": 90,
                   "layout": "none",
                   "children": [
                     {
@@ -3352,11 +3355,11 @@
                       "cornerRadius": 2,
                       "id": "vfaTB",
                       "x": 0,
-                      "y": 24,
+                      "y": 20,
                       "name": "sliderFill2",
                       "fill": "#32D583",
                       "width": 4,
-                      "height": 24
+                      "height": 70
                     }
                   ]
                 },
@@ -3364,7 +3367,7 @@
                   "type": "icon_font",
                   "id": "sb4oM",
                   "x": 330,
-                  "y": 36,
+                  "y": 22,
                   "name": "closeBtn2",
                   "width": 16,
                   "height": 16,
@@ -3378,10 +3381,10 @@
               "type": "frame",
               "id": "BMTvT",
               "x": 20,
-              "y": 208,
+              "y": 41,
               "name": "card3",
               "width": 362,
-              "height": 88,
+              "height": 60,
               "fill": "#1A203580",
               "cornerRadius": 24,
               "stroke": {
@@ -3389,7 +3392,8 @@
               },
               "effect": {
                 "type": "blur",
-                "radius": 20
+                "radius": 20,
+                "enabled": false
               },
               "layout": "none",
               "children": [
@@ -3397,7 +3401,7 @@
                   "type": "icon_font",
                   "id": "qjQCI",
                   "x": 20,
-                  "y": 32,
+                  "y": 18,
                   "name": "oceanIcon",
                   "width": 24,
                   "height": 24,
@@ -3409,7 +3413,7 @@
                   "type": "text",
                   "id": "SsEzi",
                   "x": 56,
-                  "y": 28,
+                  "y": 11,
                   "name": "oceanText",
                   "fill": "#FAFAF9",
                   "content": "Ocean Waves",
@@ -3421,7 +3425,7 @@
                   "type": "text",
                   "id": "ZQWMa",
                   "x": 56,
-                  "y": 50,
+                  "y": 34,
                   "name": "oceanSub",
                   "fill": "#8E8E93",
                   "content": "Calm sea shore",
@@ -3432,11 +3436,12 @@
                 {
                   "type": "frame",
                   "id": "srJTN",
-                  "x": 260,
-                  "y": 20,
+                  "x": 284,
+                  "y": 28,
                   "name": "slider3",
+                  "rotation": -450,
                   "width": 4,
-                  "height": 48,
+                  "height": 90,
                   "layout": "none",
                   "children": [
                     {
@@ -3455,11 +3460,11 @@
                       "cornerRadius": 2,
                       "id": "s4Dwm",
                       "x": 0,
-                      "y": 10,
+                      "y": 40,
                       "name": "sliderFill3",
                       "fill": "#32D583",
                       "width": 4,
-                      "height": 38
+                      "height": 50
                     }
                   ]
                 },
@@ -3467,7 +3472,7 @@
                   "type": "icon_font",
                   "id": "NVOw5",
                   "x": 330,
-                  "y": 36,
+                  "y": 22,
                   "name": "closeBtn3",
                   "width": 16,
                   "height": 16,
@@ -3483,7 +3488,7 @@
           "type": "frame",
           "id": "jPVMV",
           "x": 151,
-          "y": 700,
+          "y": 695,
           "name": "fab",
           "width": 100,
           "height": 56,
@@ -3527,21 +3532,9 @@
               "name": "plusIcon",
               "width": 20,
               "height": 20,
-              "iconFontName": "plus",
+              "iconFontName": "play",
               "iconFontFamily": "lucide",
               "fill": "#FFFFFF"
-            },
-            {
-              "type": "text",
-              "id": "Hm1Gd",
-              "x": 18,
-              "y": 58,
-              "name": "fabLabel",
-              "fill": "#FAFAF9",
-              "content": "Add Sound",
-              "fontFamily": "Inter",
-              "fontSize": 12,
-              "fontWeight": "600"
             }
           ]
         },
@@ -3722,8 +3715,75 @@
               ]
             }
           ]
+        },
+        {
+          "type": "frame",
+          "id": "oGswt",
+          "x": 20,
+          "y": 624,
+          "name": "mixerControl",
+          "width": 362,
+          "height": 56,
+          "layout": "vertical",
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "jDXMw",
+              "name": "trackInfo",
+              "width": 200,
+              "layout": "vertical",
+              "gap": 4,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "9wKjG",
+                  "name": "trackName",
+                  "fill": "$--text-primary",
+                  "content": "Rainfall·Thunder",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "Ne2bK",
+                  "name": "trackStatus",
+                  "fill": "$--accent-secondary",
+                  "content": "Playing",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "icon_font",
+          "id": "2MgaI",
+          "x": 187,
+          "y": 403,
+          "name": "addToMixer4",
+          "width": 28,
+          "height": 34,
+          "iconFontName": "plus",
+          "iconFontFamily": "lucide",
+          "fill": "#6b6b70"
         }
       ]
+    },
+    {
+      "type": "prompt",
+      "id": "UBErC",
+      "x": -1930,
+      "y": -1367,
+      "width": 956,
+      "height": 517,
+      "content": "Node ID: jPVMV这个改为开始暂停按钮\nNode ID: UBErC这个下面放一个+"
     }
   ],
   "variables": {
