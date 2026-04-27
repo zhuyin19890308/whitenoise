@@ -1,6 +1,6 @@
 /**
  * AudioEngine - 白噪音音频引擎
- * 
+ *
  * 核心职责：
  * 1. 双模状态机：
  *    - Mode A（本地多路混音）：使用多个 InnerAudioContext 同时播放本地音源
@@ -8,11 +8,22 @@
  * 2. 状态机：IDLE, LOCAL_MIX, CLOUD_MIXING, CLOUD_LOADING, READY, ERROR
  * 3. 事件总线：通过回调通知 UI 状态变更
  * 4. 无缝切换逻辑
- * 
+ *
  * uniapp 多端兼容：使用 uni.createInnerAudioContext, uni.getBackgroundAudioManager 等通用 API
+ *
+ * 平台差异化策略：
+ * - App端：本地多路混音优先，后端合成作为降级方案
+ * - 小程序端：后端合成（保持原有逻辑）
  */
 
 import ResourceManager from './ResourceManager';
+import {
+    isApp,
+    isWeixin,
+    shouldUseCloudSynthesis,
+    supportBackgroundPlayback,
+    getBackgroundAudioInfo
+} from './platformUtils';
 
 // ==================== 状态常量 ====================
 export const AudioEngineState = {
@@ -73,6 +84,17 @@ class AudioEngine {
         // 初始化
         this.initBackgroundAudio();
         this.restoreLastBgSrc();
+
+        // 初始化音频中断监听（App端）
+        this.initAudioInterruptionListener();
+
+        // 监听计时器结束事件
+        // #ifdef APP-PLUS
+        uni.$on('timerEnd', () => {
+            console.log('[AudioEngine] 收到计时器结束事件');
+            this.fadeOutAndStop(3000);
+        });
+        // #endif
     }
 
     bgDebug(tag, extra = {}) {
@@ -600,21 +622,35 @@ class AudioEngine {
     
     /**
      * 播放/暂停
-     * @param {boolean} isPlaying 
+     * @param {boolean} isPlaying
      */
     togglePlay(isPlaying) {
         if (isPlaying) {
             // 从暂停恢复播放
             if (this.state === AudioEngineState.LOCAL_MIX || this.state === AudioEngineState.IDLE) {
-                // 用户点击播放时，直接触发云混音（不先播放本地混音）
-                // 这样可以显示后台播放浮动窗口
                 const activeTracks = this.getTrackVolumes().filter(t => t.vol > 0);
-                if (activeTracks.length > 0) {
-                    console.log('[AudioEngine] 用户点击播放，触发云混音');
+
+                if (activeTracks.length === 0) {
+                    // 没有活跃音轨
+                    this.playActiveTracks();
+                    return;
+                }
+
+                // 平台差异化策略
+                if (this.shouldUseCloudMix(activeTracks)) {
+                    // 微信小程序：使用后端合成
+                    console.log('[AudioEngine] 小程序模式，触发云混音');
                     this.switchToCloudMix(activeTracks, this.currentDuration);
                 } else {
-                    // 没有活跃音轨时才播放本地混音（静音状态）
+                    // App端：本地多路混音
+                    console.log('[AudioEngine] App模式，使用本地混音');
+                    this.setState(AudioEngineState.LOCAL_MIX);
                     this.playActiveTracks();
+
+                    // 如果需要后台播放，设置锁屏信息
+                    if (supportBackgroundPlayback()) {
+                        this.setBackgroundAudioInfo({ name: this.getCurrentMixName() });
+                    }
                 }
             } else if (this.state === AudioEngineState.READY) {
                 // Mode B：恢复后台单文件
@@ -662,6 +698,140 @@ class AudioEngine {
         this.resourceManager && this.resourceManager.cancelCurrentDownload();
     }
 }
+
+// ==================== 平台差异化方法 ====================
+
+    /**
+     * 判断是否应该使用后端合成
+     * @param {Array} tracks - 音轨数组
+     * @returns {boolean}
+     */
+    shouldUseCloudMix(tracks) {
+        return shouldUseCloudSynthesis(tracks);
+    }
+
+    /**
+     * 设置锁屏音频信息（App端）
+     */
+    setBackgroundAudioInfo(mixInfo) {
+        if (!this.bgAudioManager || !isApp()) return;
+
+        const info = getBackgroundAudioInfo(mixInfo);
+        this.bgAudioManager.title = info.title;
+        this.bgAudioManager.singer = info.singer;
+        if (info.coverImgUrl) {
+            this.bgAudioManager.coverImgUrl = info.coverImgUrl;
+        }
+    }
+
+    /**
+     * 初始化音频中断监听（App端）
+     */
+    initAudioInterruptionListener() {
+        // #ifdef APP-PLUS
+        uni.onAudioInterruptionBegin(() => {
+            console.log('[AudioEngine] 音频中断开始');
+            this._wasPlayingBeforeInterruption = this.state === AudioEngineState.READY ||
+                this.state === AudioEngineState.LOCAL_MIX;
+            if (this._wasPlayingBeforeInterruption) {
+                this._isInterrupted = true;
+            }
+        });
+
+        uni.onAudioInterruptionEnd(() => {
+            console.log('[AudioEngine] 音频中断结束');
+            if (this._isInterrupted && this._wasPlayingBeforeInterruption) {
+                // 延迟恢复，避免抢占冲突
+                setTimeout(() => {
+                    this.resume();
+                    this._isInterrupted = false;
+                    this._wasPlayingBeforeInterruption = false;
+                }, 500);
+            }
+        });
+        // #endif
+    }
+
+    /**
+     * 恢复播放（中断后）
+     */
+    resume() {
+        if (this.state === AudioEngineState.READY && this.bgAudioManager) {
+            try {
+                this.bgAudioManager.play();
+            } catch (e) {
+                console.warn('[AudioEngine] 恢复播放失败:', e);
+            }
+        } else if (this.state === AudioEngineState.LOCAL_MIX) {
+            this.playActiveTracks();
+        }
+    }
+
+    /**
+     * 获取当前混音名称
+     */
+    getCurrentMixName() {
+        const activeTracks = this.currentTracks.filter(t => (t.vol || 0) > 0);
+        if (activeTracks.length === 0) return '无';
+        if (activeTracks.length === 1) {
+            return this.getTrackName(activeTracks[0].id) || '单音轨';
+        }
+        return '混音组合';
+    }
+
+    /**
+     * 获取音轨名称
+     */
+    getTrackName(trackId) {
+        // 从 ResourceManager 获取音轨信息
+        if (this.resourceManager && this.resourceManager.getTrackInfo) {
+            const info = this.resourceManager.getTrackInfo(trackId);
+            return info?.name || null;
+        }
+        return null;
+    }
+
+    /**
+     * 渐出并停止（计时器到时）
+     * @param {number} fadeDuration 渐出时长（毫秒）
+     */
+    fadeOutAndStop(fadeDuration = 3000) {
+        console.log('[AudioEngine] 渐出并停止');
+
+        if (this.state === AudioEngineState.READY && this.bgAudioManager) {
+            // Mode B：使用 BackgroundAudioManager 的音量渐变
+            // #ifdef APP-PLUS
+            const startVolume = this.bgAudioManager.volume || 1;
+            const startTime = Date.now();
+            const step = 100;
+            const volumeStep = startVolume / (fadeDuration / step);
+
+            const fadeOut = () => {
+                const elapsed = Date.now() - startTime;
+                if (elapsed >= fadeDuration) {
+                    this.bgAudioManager.volume = 0;
+                    this.stop();
+                    return;
+                }
+                const newVolume = Math.max(0, startVolume - volumeStep * (elapsed / step));
+                this.bgAudioManager.volume = newVolume;
+                setTimeout(fadeOut, step);
+            };
+            fadeOut();
+            // #endif
+
+            // #ifndef APP-PLUS
+            this.stop();
+            // #endif
+        } else if (this.state === AudioEngineState.LOCAL_MIX) {
+            // Mode A：使用本地渐出
+            this.fadeOutActiveTracks(0, fadeDuration).then(() => {
+                this.stop();
+            });
+        } else {
+            this.stop();
+        }
+    }
 
 // ==================== 导出单例 ====================
 export const audioEngine = new AudioEngine();
