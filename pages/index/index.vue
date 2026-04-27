@@ -224,11 +224,16 @@
       </view>
     </view>
   </view>
+
+    <!-- 底部 TabBar -->
+    <TabBar current="/pages/index/index" />
+  </view>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import MeditationCanvas from '../../components/MeditationCanvas.vue';
+import TabBar from '../../components/TabBar.vue';
 
 // uni-app 全局变量声明兜底
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -836,6 +841,43 @@ onUnmounted(() => {
     t.context = null;
   });
 });
+
+/* ─── 微信分享 ─── */
+function getShareConfig() {
+  const activeCount = tracks.value.filter((t: Track) => t.volume > 0).length;
+  const sceneName = scenes.value.find((s: Scene) => s.id === currentSceneId.value)?.name || 'MANUAL';
+  let title = '眠融 - 白噪音助眠';
+  let desc = '我用眠融听着白噪音入睡，你也来试试~';
+
+  if (activeCount > 0) {
+    title = `眠融 - ${sceneName}`;
+    desc = `正在听 ${activeCount} 种声音的混音，很助眠！`;
+  }
+
+  return {
+    title,
+    desc,
+    path: '/pages/index/index'
+  };
+}
+
+// #ifdef MP-WEIXIN
+onShareAppMessage(function() {
+  const config = getShareConfig();
+  return {
+    ...config,
+    imageUrl: '/static/share/poster.svg'
+  };
+});
+
+onShareTimeline(function() {
+  const config = getShareConfig();
+  return {
+    ...config,
+    imageUrl: '/static/share/poster.svg'
+  };
+});
+// #endif
 </script>
 
 <style scoped>
@@ -994,7 +1036,7 @@ onUnmounted(() => {
   border-top: none;
   overflow: hidden;
   min-height: 0;
-  padding-bottom: 0px;
+  padding-bottom: 80px; /* 避免被 TabBar 遮挡 */
 }
 
 .panel-header {
