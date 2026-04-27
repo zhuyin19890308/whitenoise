@@ -4,19 +4,55 @@
             "path": "pages/index/index",
             "style": {
                 "navigationBarTitleText": "眠 融",
-                "navigationBarBackgroundColor": "#121212",
+                "navigationBarBackgroundColor": "#0A0E1A",
                 "navigationBarTextStyle": "white",
                 "disableScroll": true,
                 "app-plus": {
                     "bounce": "none"
                 }
             }
+        },
+        {
+            "path": "pages/sound-library/index",
+            "style": {
+                "navigationBarTitleText": "声音库",
+                "navigationBarBackgroundColor": "#0A0E1A",
+                "navigationBarTextStyle": "white",
+                "disableScroll": false
+            }
+        },
+        {
+            "path": "pages/favorites/index",
+            "style": {
+                "navigationBarTitleText": "收藏",
+                "navigationBarBackgroundColor": "#0A0E1A",
+                "navigationBarTextStyle": "white",
+                "disableScroll": false
+            }
+        },
+        {
+            "path": "pages/profile/index",
+            "style": {
+                "navigationBarTitleText": "我的",
+                "navigationBarBackgroundColor": "#0A0E1A",
+                "navigationBarTextStyle": "white",
+                "disableScroll": false
+            }
+        },
+        {
+            "path": "pages/timer/index",
+            "style": {
+                "navigationBarTitleText": "睡眠计时器",
+                "navigationBarBackgroundColor": "#0A0E1A",
+                "navigationBarTextStyle": "white",
+                "disableScroll": false
+            }
         }
     ],
     "globalStyle": {
         "navigationBarTextStyle": "white",
         "navigationBarTitleText": "眠 融",
-        "navigationBarBackgroundColor": "#121212",
-        "backgroundColor": "#121212"
+        "navigationBarBackgroundColor": "#0A0E1A",
+        "backgroundColor": "#0A0E1A"
     }
 }
