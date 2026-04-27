@@ -2,8 +2,8 @@
     "name" : "眠 融",
     "appid" : "__UNI__091B039",
     "description" : "白噪音混音器跨平台应用",
-    "versionName" : "1.0.1",
-    "versionCode" : "101",
+    "versionName" : "2.0.0",
+    "versionCode" : "200",
     "transformPx" : false,
     "app-plus" : {
         "usingComponents" : true,
